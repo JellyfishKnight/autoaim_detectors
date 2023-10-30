@@ -1,0 +1,6 @@
+detector_node:
+  image_topic: {
+    type: string,
+    default_value: "image_raw",
+    description: "the topic name of the image to be processed"
+  }
