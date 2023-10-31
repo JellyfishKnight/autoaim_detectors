@@ -52,6 +52,10 @@ typedef struct TraditionalArmorDetectorParams : public BaseArmorParams {
         double max_angle;
     }ArmorParams;
     ArmorParams armor_params;
+    double small_armor_height;
+    double small_armor_width;
+    double large_armor_height;
+    double large_armor_width;
 }TAParams;
 
 class TraditionalArmorDetector : public BaseArmorDetector {
@@ -67,6 +71,8 @@ public:
     void set_params(const TAParams& params);
 
     void pack() override;
+
+    void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info);
 
 private:
 

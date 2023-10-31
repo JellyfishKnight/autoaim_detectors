@@ -3,7 +3,8 @@
 // for more see document: https://swjtuhelios.feishu.cn/docx/MfCsdfRxkoYk3oxWaazcfUpTnih?from=from_copylink
 #pragma once
 
-#include <memory>
+#include "BaseArmorDetector.hpp"
+// ros
 #include <rclcpp/rclcpp.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <string>
@@ -16,8 +17,14 @@
 #include"opencv2/opencv.hpp"
 #include"opencv2/dnn.hpp"
 #include"opencv2/highgui.hpp"
-
-#include "BaseArmorDetector.hpp"
+// tf2 
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <tf2/convert.h>
+// interfaces
+#include "autoaim_interfaces/msg/armors.hpp"
+#include "sensor_msgs/msg/camera_info.hpp"
+// utilities
 #include "autoaim_utilities/PnPSolver.hpp"
 
 const int NUM_CLASS = 9;//类别总数
@@ -59,22 +66,39 @@ struct GridAndStride{
 };
 
 typedef struct NetArmorParams : public BaseArmorParams {
+    int net_classifier_thresh;
+    double small_armor_height;
+    double small_armor_width;
+    double large_armor_height;
+    double large_armor_width;
+    typedef struct ArmorParams {
+        double min_light_ratio;
+        double max_light_ratio;
+        double min_small_center_distance;
+        double max_small_center_distance;
+        double min_large_center_distance;
+        double max_large_center_distance;
+        double max_angle;
+    }ArmorParams;
+    ArmorParams armor_params;
 
 }NAParams;
 
 class NetArmorDetector : public BaseArmorDetector {
 public:
-    NetArmorDetector(std::shared_ptr<helios_autoaim::Params> params);
+    NetArmorDetector(const NAParams& params);
 
     void init() override;
 
-    autoaim_interfaces::msg::Armors detect_targets(const cv::Mat& images) override;
+    autoaim_interfaces::msg::Armors detect(const cv::Mat& images) override;
 
     void draw_results(cv::Mat& img) override;
 
-    void set_params(const TAParams& params);
+    void set_params(const NAParams& params);
 
     void pack() override;
+
+    void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info);
 private:
     int argmax(const float* ptr, int len);
     cv::Mat static_resize(cv::Mat src);
@@ -106,7 +130,7 @@ private:
     std::shared_ptr<PnPSolver> pnp_solver_;
 
     // params
-    std::shared_ptr<helios_autoaim::Params> params_;
+    NAParams params_;
     // camera info
     cv::Point2f cam_center_;
     sensor_msgs::msg::CameraInfo::SharedPtr cam_info_;
@@ -119,7 +143,7 @@ private:
     ov::Shape tensor_shape_;
     ov::Output<const ov::Node> input_port_;
 
-    helios_rs_interfaces::msg::Armors armor_interfaces_;
+    autoaim_interfaces::msg::Armors armor_interfaces_;
     std::vector<Armor> armors_;
 
     cv::Mat blob_;//可输入模型的数据

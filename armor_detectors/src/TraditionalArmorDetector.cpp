@@ -14,11 +14,18 @@ namespace helios_cv {
             params_.number_classifier_thresh);
     }
     
-    // void TraditionalArmorDetector::set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) {
-    //     cam_info_ = cam_info;
-    //     cam_center_ = cv::Point2f(cam_info_->k[2], cam_info_->k[5]);
-    //     pnp_solver_ = std::make_shared<PnPSolver>(cam_info->k, cam_info->d, params_->pnp_solver);
-    // }
+    void TraditionalArmorDetector::set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) {
+        cam_info_ = cam_info;
+        cam_center_ = cv::Point2f(cam_info_->k[2], cam_info_->k[5]);
+        pnp_solver_ = std::make_shared<PnPSolver>(cam_info->k, cam_info->d, PnPParams{
+            params_.small_armor_height,
+            params_.small_armor_width,
+            params_.large_armor_height,
+            params_.large_armor_width,
+            // because we have 2 pnp solver in each detector, so we don't need energy params
+            0, 0
+        });
+    }
 
     void TraditionalArmorDetector::init() {
         
