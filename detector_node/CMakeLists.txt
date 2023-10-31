@@ -12,7 +12,6 @@ project(detector_node)
 
 find_package(ament_cmake_auto REQUIRED)
 find_package(OpenCV 4 REQUIRED)
-find_package(OpenVINO REQUIRED)
 
 ament_auto_find_build_dependencies()
 
@@ -34,12 +33,11 @@ target_include_directories(
 target_link_libraries(
   ${PROJECT_NAME}
   ${OpenCV_LIBS}
-  openvino::runtime
 )
 
 rclcpp_components_register_node(${PROJECT_NAME}
   PLUGIN helios_cv::DetectorNode
-  EXECUTABLE ${PROJECT_NAME}
+  EXECUTABLE ${PROJECT_NAME}_node
 )
 
 if(BUILD_TESTING) 

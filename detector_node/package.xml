@@ -11,14 +11,12 @@
 
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
-  <depend>autoaim_interfaces</depend>
-  <depend>sensor_msgs</depend>
   <depend>generate_parameter_library</depend>
   <depend>cv_bridge</depend>
-  <depend>net_armor_detector</depend>
-  <depend>net_energy_detector</depend>
-  <depend>traditional_armor_detector</depend>
-  <depend>traditional_energy_detector</depend>
+  <depend>armor_detectors</depend>
+  <depend>autoaim_interfaces</depend>
+  <depend>sensor_msgs</depend>
+  <depend>image_transport</depend>
 
 
   <test_depend>ament_lint_auto</test_depend>

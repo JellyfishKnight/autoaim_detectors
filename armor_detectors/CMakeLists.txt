@@ -1,11 +1,14 @@
 cmake_minimum_required(VERSION 3.22.0)
-project(armor_detectors)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
 
+project(armor_detectors)
 find_package(ament_cmake_auto REQUIRED)
 find_package(OpenCV 4 REQUIRED)
 find_package(OpenVINO REQUIRED)
@@ -18,7 +21,7 @@ ament_auto_add_library(${PROJECT_NAME} SHARED
 
 target_include_directories(
   ${PROJECT_NAME} PUBLIC
-  include
+  include/${PROJECT_NAME}
 )
 
 target_link_libraries(
