@@ -2,13 +2,6 @@
 // Submodule of HeliosRobotSystem
 // for more see document: https://swjtuhelios.feishu.cn/docx/MfCsdfRxkoYk3oxWaazcfUpTnih?from=from_copylink
 #include "NetArmorDetector.hpp"
-#include "Armor.hpp"
-#include <ament_index_cpp/get_package_share_directory.hpp>
-#include <functional>
-#include <opencv2/core/types.hpp>
-#include <tf2/LinearMath/Matrix3x3.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
-#include <vector>
 
 namespace helios_cv {
 NetArmorDetector::NetArmorDetector(std::shared_ptr<helios_autoaim::Params> params) {

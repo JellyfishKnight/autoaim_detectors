@@ -8,7 +8,6 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <string>
 // openvino
-#include "helios_autoaim_parameters.hpp"
 #include"openvino/openvino.hpp"
 #include"ie/inference_engine.hpp"
 #include"openvino/core/core.hpp"
@@ -18,8 +17,8 @@
 #include"opencv2/dnn.hpp"
 #include"opencv2/highgui.hpp"
 
-#include "BaseDetector.hpp"
-#include "PnPSolver.hpp"
+#include "BaseArmorDetector.hpp"
+#include "autoaim_utilities/PnPSolver.hpp"
 
 const int NUM_CLASS = 9;//类别总数
 const int NUM_COLORS = 2;//颜色
@@ -59,21 +58,23 @@ struct GridAndStride{
     int stride;
 };
 
-class NetArmorDetector : public BaseDetector {
+typedef struct NetArmorParams : public BaseArmorParams {
+
+}NAParams;
+
+class NetArmorDetector : public BaseArmorDetector {
 public:
     NetArmorDetector(std::shared_ptr<helios_autoaim::Params> params);
 
-    void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) override;
+    void init() override;
 
-    bool init_detector(std::shared_ptr<helios_autoaim::Params> params) override;
-
-    helios_rs_interfaces::msg::Armors detect_targets(const cv::Mat& images) override;
+    autoaim_interfaces::msg::Armors detect_targets(const cv::Mat& images) override;
 
     void draw_results(cv::Mat& img) override;
 
-    void set_params(std::shared_ptr<helios_autoaim::Params> params) override;
+    void set_params(const TAParams& params);
 
-    helios_autoaim::Params::Detector detector_params_;
+    void pack() override;
 private:
     int argmax(const float* ptr, int len);
     cv::Mat static_resize(cv::Mat src);
