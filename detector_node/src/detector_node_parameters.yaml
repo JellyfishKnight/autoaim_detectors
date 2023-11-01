@@ -1,6 +1,233 @@
 detector_node:
+  debug: {
+    type: bool,
+    default_value: true,
+    description: "whether to show debug info"
+  }
+  is_blue: {
+    type: bool,
+    default_value: true,
+    description: "whether the armor is blue"
+  }
+  is_armor_autoaim: {
+    type: bool,
+    default_value: true,
+    description: "whether to use armor autoaim"
+  }
   image_topic: {
     type: string,
     default_value: "image_raw",
     description: "the topic name of the image to be processed"
   }
+  use_traditional: {
+    type: bool,
+    default_value: false,
+    description: "whether to use traditional method"
+  }
+  pnp_solver: 
+    small_armor_height: {
+      type: double,
+      default_value: 55,
+      description: "small armor height",
+    }
+    small_armor_width: {
+      type: double,
+      default_value: 55,
+      description: "small armor height",
+    }
+    large_armor_height: {
+      type: double,
+      default_value: 55,
+      description: "large armor height",
+    }
+    large_armor_width: {
+      type: double,
+      default_value: 225,
+      description: "large armor width",
+    }
+    energy_armor_height: {
+      type: double,
+      default_value: 400,
+      description: "energy armor height",
+    }
+    energy_armor_width: {
+      type: double,
+      default_value: 380,
+      description: "energy armor width",
+    }
+  armor_detector:
+    traditional:
+      binary_thres: {
+        type: int,
+        default_value: 100,
+        description: "binary threshold",
+      }
+      number_classifier_threshold: {
+          type: int,
+          default_value: 70.0,
+          description: "threshold of number classifier",
+      }
+      light:
+          min_ratio: {
+            type: double,
+            default_value: 0.1,
+            description: "min ratio of light",
+          }
+          max_ratio: {
+            type: double,
+            default_value: 0.4,
+            description: "max ratio of light",
+          }
+          max_angle: {
+            type: double,
+            default_value: 40.0,
+            description: "max angle of light",
+          }
+      armor:
+          min_light_ratio: {
+            type: double,
+            default_value: 0.7,
+            description: "min ratio of light",
+          }
+          min_small_center_distance: {
+            type: double,
+            default_value: 0.8,
+            description: "min distance of small center",
+          }
+          max_small_center_distance: {
+            type: double,
+            default_value: 3.0,
+            description: "max distance of small center",
+          }
+          min_large_center_distance: {
+            type: double,
+            default_value: 3.0,
+            description: "max distance of big center",
+          }
+          max_large_center_distance: {
+            type: double,
+            default_value: 9.2,
+            description: "max distance of big center",
+          }
+          max_angle: {
+            type: double,
+            default_value: 35.0,
+            description: "max angle of armor",
+          }
+    net:
+      classifier_thresh: {
+        type: int,
+        default_value: 70,
+        description: "threshold of classifier",
+      }
+  energy_detector:
+    binary_thres: {
+      type: int,
+      default_value: 100,
+      description: "binary threshold",
+    }
+    energy_thresh: {
+      type: int,
+      default_value: 100,
+      description: "energy threshold",
+    }
+    rgb_weight_r_1: {
+      type: double,
+      default_value: 0.5,
+      description: "rgb weight ratio",
+    }
+    rgb_weight_r_2: {
+      type: double,
+      default_value: 0.5,
+      description: "rgb weight ratio",
+    }
+    rgb_weight_r_3: {
+      type: double,
+      default_value: 0.5,
+      description: "rgb weight ratio",
+    }
+    rgb_weight_b_1: {
+      type: double,
+      default_value: 0.5,
+      description: "rgb weight ratio",
+    }
+    rgb_weight_b_2: {
+      type: double,
+      default_value: 0.5,
+      description: "rgb weight ratio",
+    }
+    rgb_weight_b_3: {
+      type: double,
+      default_value: 0.5,
+      description: "rgb weight ratio",
+    }
+    area_ratio: {
+      type: double,
+      default_value: 0.5,
+      description: "area ratio",
+    }
+  armor_predictor:
+    target_frame: {
+        type: string,
+        default_value: "gyro",
+        description: "target frame of coordinate transformation",
+    }
+    ekf: 
+      sigma2_q_xyz: {
+        type: double,
+        default_value: 100.0,
+      }
+      sigma2_q_yaw: {
+        type: double,
+        default_value: 25.0,
+      }
+      sigma2_q_r: {
+        type: double,
+        default_value: 800.0,
+      }
+      r_xyz_factor: {
+        type: double,
+        default_value: 0.05,
+      }
+      r_yaw: {
+        type: double,
+        default_value: 0.02
+      }
+    max_lost: {
+      type: int,
+      default_value: 5,
+      description: "max lost times of armor"
+    }
+    max_detect: {
+      type: int,
+      default_value: 5,
+      description: "max detect times of armor"
+    }
+    max_match_distance: {
+      type: double,
+      default_value: 0.8,
+      description: "max match distance of armor"
+    }
+    max_match_yaw_diff: {
+      type: double,
+      default_value: 0.7,
+      description: "max match yaw diff of armor"
+    }
+    lost_time_thres_: {
+      type: double,
+      default_value: 0.5,
+      description: "lost time threshold",
+    }
+    car_name: {
+      type: int,
+      default_value: 2,
+      description: "car name",
+    }
+  energy_predictor:
+    temp: {
+      type: int,
+      default_value: 10,
+      description: "temp",
+    }
+
+

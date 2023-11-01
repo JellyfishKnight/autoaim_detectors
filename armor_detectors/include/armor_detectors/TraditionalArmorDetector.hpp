@@ -44,7 +44,6 @@ typedef struct TraditionalArmorDetectorParams : public BaseArmorParams {
     LightParams light_params;
     typedef struct ArmorParams {
         double min_light_ratio;
-        double max_light_ratio;
         double min_small_center_distance;
         double max_small_center_distance;
         double min_large_center_distance;
