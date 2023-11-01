@@ -46,11 +46,7 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
                     params_.armor_detector.traditional.armor.min_large_center_distance,
                     params_.armor_detector.traditional.armor.max_large_center_distance,
                     params_.armor_detector.traditional.armor.max_angle,
-                },
-                params_.pnp_solver.small_armor_height,
-                params_.pnp_solver.small_armor_width,
-                params_.pnp_solver.large_armor_height,
-                params_.pnp_solver.large_armor_width
+                }
             }
         );
         ///TODO: pass energy_detector params
@@ -65,31 +61,159 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
                     params_.debug,
                     params_.use_traditional
                 },
-                static_cast<int>(params_.armor_detector.net.classifier_thres),
-                params_.pnp_solver.small_armor_height,
-                params_.pnp_solver.small_armor_width,
-                params_.pnp_solver.large_armor_height,
-                params_.pnp_solver.large_armor_width,
-                NAParams::ArmorParams{
-                    params_.armor_detector.traditional.armor.min_light_ratio,
-                    params_.armor_detector.traditional.armor.min_small_center_distance,
-                    params_.armor_detector.traditional.armor.max_small_center_distance,
-                    params_.armor_detector.traditional.armor.min_large_center_distance,
-                    params_.armor_detector.traditional.armor.max_large_center_distance,
-                    params_.armor_detector.traditional.armor.max_angle
-                }
+                static_cast<int>(params_.armor_detector.net.classifier_thresh),
             }
         );
         ///TODO: pass energy detector params
 
     }
-    // init markers
-    
+    // init debug info
+    if (params_.debug) {
+        init_markers();
+        marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+            "/detector/markers", 10);
+        binary_img_pub_ = image_transport::create_publisher(this, "/detector/binary_img");
+        number_img_pub_ = image_transport::create_publisher(this, "/detector/number_img");
+        result_img_pub_ = image_transport::create_publisher(this, "/detector/result_img");
+        lights_data_pub_ =
+            this->create_publisher<autoaim_interfaces::msg::DebugLights>("/detector/debug_lights", 10);
+        armors_data_pub_ =
+            this->create_publisher<autoaim_interfaces::msg::DebugArmors>("/detector/debug_armors", 10);
+    }
     // create publishers and subscribers
+    // create publishers
+    armors_pub_ = this->create_publisher<autoaim_interfaces::msg::Armors>("/armors", 10);
+    // create cam info subscriber
+    cam_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+        "/camera_info", rclcpp::SensorDataQoS(),
+        [this](sensor_msgs::msg::CameraInfo::SharedPtr camera_info) {
+        cam_center_ = cv::Point2f(camera_info->k[2], camera_info->k[5]);
+        cam_info_ = std::make_shared<sensor_msgs::msg::CameraInfo>(*camera_info);
+        pnp_solver_ = std::make_shared<PnPSolver>(cam_info_->k, camera_info->d, PnPParams{
+            params_.pnp_solver.small_armor_width,
+            params_.pnp_solver.small_armor_height,
+            params_.pnp_solver.large_armor_width,
+            params_.pnp_solver.large_armor_height,
+            params_.pnp_solver.energy_armor_width,
+            params_.pnp_solver.energy_armor_height
+        });
+        armor_detector_->set_cam_info(camera_info);
+        // energy_detector_->set_cam_info(camera_info);
+        cam_info_sub_.reset();
+    });
+    if (params_.is_armor_autoaim) {
+        image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+            "/image_raw", rclcpp::SensorDataQoS(),
+            std::bind(&DetectorNode::armor_image_callback, this, std::placeholders::_1));
+    } else {
+        image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+            "/image_raw", rclcpp::SensorDataQoS(),
+            std::bind(&DetectorNode::energy_image_callback, this, std::placeholders::_1));
+    }
+}
+
+void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image_msg) {
+    if (param_listener_->is_old(params_)) {
+        params_ = param_listener_->get_params();
+        RCLCPP_INFO(logger_, "Params updated");
+    }
+    if (!params_.is_armor_autoaim) {
+        RCLCPP_WARN(logger_, "change state to energy!");
+        image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+            "/image_raw", rclcpp::SensorDataQoS(), 
+            std::bind(&DetectorNode::energy_image_callback, this, std::placeholders::_1));
+    }
+    // convert image msg to cv::Mat
+    cv_bridge::CvImagePtr cv_ptr;
+    try {
+        cv_ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
+    } catch (const cv_bridge::Exception &e) {
+        RCLCPP_ERROR(logger_, "cv_bridge exception: %s", e.what());
+        return;
+    }
+    // detect
+    auto armors = armor_detector_->detect(cv_ptr->image);
+    autoaim_interfaces::msg::Armor temp_armor;
+    autoaim_interfaces::msg::Armors armors_msg;
+    for (const auto & armor : armors) {
+        cv::Mat rvec, tvec;
+        bool success = pnp_solver_->solvePnP(armor, rvec, tvec);
+        if (success) {
+            // Fill basic info
+            temp_armor.type = static_cast<int>(armor.type);
+            temp_armor.number = armor.number;
+            // Fill pose
+            temp_armor.pose.position.x = tvec.at<double>(0);
+            temp_armor.pose.position.y = tvec.at<double>(1);
+            temp_armor.pose.position.z = tvec.at<double>(2);
+            // rvec to 3x3 rotation matrix
+            cv::Mat rotation_matrix;
+            cv::Rodrigues(rvec, rotation_matrix);
+            // rotation matrix to quaternion
+            tf2::Matrix3x3 tf2_rotation_matrix(
+            rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
+            rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
+            rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
+            rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
+            rotation_matrix.at<double>(2, 2));
+            tf2::Quaternion tf2_q;
+            tf2_rotation_matrix.getRotation(tf2_q);
+            temp_armor.pose.orientation = tf2::toMsg(tf2_q);
+
+            // Fill the distance to image center
+            temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
+            armors_msg.armors.emplace_back(temp_armor);
+        }
+    }
+    // publish
+    armors_pub_->publish(armors_msg);
 
 }
 
+void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr image_msg) {
+
+}
+
+void DetectorNode::init_markers() {
+    // Visualization Marker Publisher
+    // See http://wiki.ros.org/rviz/DisplayTypes/Marker
+    armor_marker_.ns = "armors";
+    armor_marker_.action = visualization_msgs::msg::Marker::ADD;
+    armor_marker_.type = visualization_msgs::msg::Marker::CUBE;
+    armor_marker_.scale.x = 0.05;
+    armor_marker_.scale.y = 0.125;
+    armor_marker_.color.a = 1.0;
+    armor_marker_.color.g = 0.5;
+    armor_marker_.color.b = 1.0;
+    armor_marker_.lifetime = rclcpp::Duration::from_seconds(0.1);
+
+    text_marker_.ns = "classification";
+    text_marker_.action = visualization_msgs::msg::Marker::ADD;
+    text_marker_.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+    text_marker_.scale.z = 0.1;
+    text_marker_.color.a = 1.0;
+    text_marker_.color.r = 1.0;
+    text_marker_.color.g = 1.0;
+    text_marker_.color.b = 1.0;
+    text_marker_.lifetime = rclcpp::Duration::from_seconds(0.1);
+}
+
+void DetectorNode::publish_markers(const autoaim_interfaces::msg::Armors& armors_msgs) {
+    using Marker = visualization_msgs::msg::Marker;
+    armor_marker_.action = armors_msgs.armors.empty() ? Marker::DELETE : Marker::ADD;
+    marker_array_.markers.emplace_back(armor_marker_);
+    marker_pub_->publish(marker_array_);
+}
+
+
+
+
 DetectorNode::~DetectorNode() {
+
+
+    binary_img_pub_.shutdown();
+    number_img_pub_.shutdown();
+    result_img_pub_.shutdown();
     RCLCPP_INFO(logger_, "DetectorNode destructed");
 }
 

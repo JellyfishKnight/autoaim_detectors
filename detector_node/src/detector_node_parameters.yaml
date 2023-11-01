@@ -58,12 +58,12 @@ detector_node:
   armor_detector:
     traditional:
       binary_thres: {
-        type: int,
+        type: double,
         default_value: 100,
         description: "binary threshold",
       }
       number_classifier_threshold: {
-          type: int,
+          type: double,
           default_value: 70.0,
           description: "threshold of number classifier",
       }
@@ -116,18 +116,18 @@ detector_node:
           }
     net:
       classifier_thresh: {
-        type: int,
+        type: double,
         default_value: 70,
         description: "threshold of classifier",
       }
   energy_detector:
     binary_thres: {
-      type: int,
+      type: double,
       default_value: 100,
       description: "binary threshold",
     }
     energy_thresh: {
-      type: int,
+      type: double,
       default_value: 100,
       description: "energy threshold",
     }
@@ -194,12 +194,12 @@ detector_node:
         default_value: 0.02
       }
     max_lost: {
-      type: int,
+      type: double,
       default_value: 5,
       description: "max lost times of armor"
     }
     max_detect: {
-      type: int,
+      type: double,
       default_value: 5,
       description: "max detect times of armor"
     }
@@ -219,13 +219,13 @@ detector_node:
       description: "lost time threshold",
     }
     car_name: {
-      type: int,
+      type: double,
       default_value: 2,
       description: "car name",
     }
   energy_predictor:
     temp: {
-      type: int,
+      type: double,
       default_value: 10,
       description: "temp",
     }

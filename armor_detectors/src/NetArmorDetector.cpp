@@ -21,14 +21,6 @@ NetArmorDetector::NetArmorDetector(const NAParams& params) {
 void NetArmorDetector::set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) {
     cam_info_ = cam_info;
     cam_center_ = cv::Point2f(cam_info_->k[2], cam_info_->k[5]);
-    pnp_solver_ = std::make_shared<PnPSolver>(cam_info->k, cam_info->d, PnPParams{
-        params_.small_armor_height,
-        params_.small_armor_width,
-        params_.large_armor_height,
-        params_.large_armor_width,
-        // because we have 2 pnp solver in each detector, so we don't need energy params
-        0, 0
-    });
 }
 
 void NetArmorDetector::init() {
@@ -41,7 +33,7 @@ void NetArmorDetector::init() {
     input_port_ = complied_model_.input();
 }
 
-autoaim_interfaces::msg::Armors NetArmorDetector::detect(const cv::Mat& image) {
+std::vector<Armor> NetArmorDetector::detect(const cv::Mat& image) {
     //对图像进行处理，使其变成可以传给模型的数据类型
     cv::Mat pre_img = static_resize(image);
     cv::dnn::blobFromImage(pre_img, blob_, 1.0, cv::Size(cam_info_->width, cam_info_->height), cv::Scalar(), false, false);
@@ -69,41 +61,7 @@ autoaim_interfaces::msg::Armors NetArmorDetector::detect(const cv::Mat& image) {
         armor_target.confidence = object.confidence;
         armors_.emplace_back(armor_target);
     }
-    // solve pnp
-    cv::Mat rvec, tvec;
-    for (const auto & armor : armors_) {
-        autoaim_interfaces::msg::Armor armor_msg;
-        cv::Mat rvec, tvec;
-        bool success = pnp_solver_->solvePnP(armor, rvec, tvec);
-        if (success) {
-            // Fill basic info
-            armor_msg.type = static_cast<int>(armor.type);
-            armor_msg.number = armor.number;
-
-            // Fill pose
-            armor_msg.pose.position.x = tvec.at<double>(0);
-            armor_msg.pose.position.y = tvec.at<double>(1);
-            armor_msg.pose.position.z = tvec.at<double>(2);
-            // rvec to 3x3 rotation matrix
-            cv::Mat rotation_matrix;
-            cv::Rodrigues(rvec, rotation_matrix);
-            // rotation matrix to quaternion
-            tf2::Matrix3x3 tf2_rotation_matrix(
-            rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
-            rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
-            rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
-            rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
-            rotation_matrix.at<double>(2, 2));
-            tf2::Quaternion tf2_q;
-            tf2_rotation_matrix.getRotation(tf2_q);
-            armor_msg.pose.orientation = tf2::toMsg(tf2_q);
-
-            // Fill the distance to image center
-            armor_msg.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
-            armor_interfaces_.armors.emplace_back(armor_msg);
-        }
-    }
-    return armor_interfaces_;
+    return armors_;
 }
 
 ArmorType NetArmorDetector::judge_armor_type(const Object& object) {

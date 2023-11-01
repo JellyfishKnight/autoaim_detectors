@@ -29,7 +29,6 @@
 // utilities
 #include "autoaim_utilities/Armor.hpp"
 #include "autoaim_utilities/NumberClassifier.hpp"
-#include "autoaim_utilities/PnPSolver.hpp"
 
 namespace helios_cv {
 
@@ -51,10 +50,6 @@ typedef struct TraditionalArmorDetectorParams : public BaseArmorParams {
         double max_angle;
     }ArmorParams;
     ArmorParams armor_params;
-    double small_armor_height;
-    double small_armor_width;
-    double large_armor_height;
-    double large_armor_width;
 }TAParams;
 
 class TraditionalArmorDetector : public BaseArmorDetector {
@@ -63,13 +58,11 @@ public:
 
     void init() override;
 
-    autoaim_interfaces::msg::Armors detect(const cv::Mat& images) override;
+    std::vector<Armor> detect(const cv::Mat& images) override;
 
     void draw_results(cv::Mat& img) override;
 
     void set_params(const TAParams& params);
-
-    void pack() override;
 
     void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info);
 
@@ -88,7 +81,6 @@ private:
     
     ArmorType isArmor(const Light & light_1, const Light & light_2);
     // submodules
-    std::shared_ptr<PnPSolver> pnp_solver_;
     std::shared_ptr<NumberClassifier> number_classifier_;
     // params
     TAParams params_;

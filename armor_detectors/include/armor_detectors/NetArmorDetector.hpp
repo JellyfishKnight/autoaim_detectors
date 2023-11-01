@@ -25,7 +25,7 @@
 #include "autoaim_interfaces/msg/armors.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 // utilities
-#include "autoaim_utilities/PnPSolver.hpp"
+#include "autoaim_utilities/Armor.hpp"
 
 const int NUM_CLASS = 9;//类别总数
 const int NUM_COLORS = 2;//颜色
@@ -67,10 +67,6 @@ struct GridAndStride{
 
 typedef struct NetArmorParams : public BaseArmorParams {
     int net_classifier_thresh;
-    double small_armor_height;
-    double small_armor_width;
-    double large_armor_height;
-    double large_armor_width;
     typedef struct ArmorParams {
         double min_light_ratio;
         double max_light_ratio;
@@ -90,15 +86,13 @@ public:
 
     void init() override;
 
-    autoaim_interfaces::msg::Armors detect(const cv::Mat& images) override;
+    std::vector<Armor> detect(const cv::Mat& images) override;
 
     void draw_results(cv::Mat& img) override;
 
     void set_params(const NAParams& params);
 
-    void pack() override;
-
-    void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info);
+    void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) override;
 private:
     int argmax(const float* ptr, int len);
     cv::Mat static_resize(cv::Mat src);
@@ -126,8 +120,6 @@ private:
     // float distance(cv::Point p1, cv::Point p2);
 
     std::string model_path_;//模型路径
-    // pnp solver
-    std::shared_ptr<PnPSolver> pnp_solver_;
 
     // params
     NAParams params_;

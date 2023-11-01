@@ -6,7 +6,6 @@
 namespace helios_cv {
     TraditionalArmorDetector::TraditionalArmorDetector(const TAParams& params) {
         params_ = params;
-        pnp_solver_ = nullptr;
         number_classifier_ = nullptr;
         number_classifier_ = std::make_shared<NumberClassifier>(
             ament_index_cpp::get_package_share_directory("helios_autoaim") + "model/armor.onnx", 
@@ -17,24 +16,17 @@ namespace helios_cv {
     void TraditionalArmorDetector::set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) {
         cam_info_ = cam_info;
         cam_center_ = cv::Point2f(cam_info_->k[2], cam_info_->k[5]);
-        pnp_solver_ = std::make_shared<PnPSolver>(cam_info->k, cam_info->d, PnPParams{
-            params_.small_armor_height,
-            params_.small_armor_width,
-            params_.large_armor_height,
-            params_.large_armor_width,
-            // because we have 2 pnp solver in each detector, so we don't need energy params
-            0, 0
-        });
     }
 
     void TraditionalArmorDetector::init() {
         
     }
 
-    autoaim_interfaces::msg::Armors TraditionalArmorDetector::detect(const cv::Mat& img) {
-        if (pnp_solver_ == nullptr || number_classifier_ == nullptr) {
+    std::vector<Armor> TraditionalArmorDetector::detect(const cv::Mat& img) {
+        if (number_classifier_ == nullptr) {
             RCLCPP_WARN(logger_, "Detector not initialized");
-            return autoaim_interfaces::msg::Armors();
+            armors_.clear();
+            return armors_;
         }
         // preprocess
         binary_img_ = preprocessImage(img);
@@ -44,9 +36,7 @@ namespace helios_cv {
             number_classifier_->extractNumbers(img, armors_);
             number_classifier_->classify(armors_);
         }
-        // convert armors into interfaces
-        convert_armors_into_interfaces();
-        return armors_interfaces_;
+        return armors_;
     }
 
     void TraditionalArmorDetector::draw_results(cv::Mat& img) {
@@ -228,40 +218,5 @@ namespace helios_cv {
         }
         return type;
     }
-
-    void TraditionalArmorDetector::pack() {
-        autoaim_interfaces::msg::Armor armor_msg;
-        for (const auto & armor : armors_) {
-            cv::Mat rvec, tvec;
-            bool success = pnp_solver_->solvePnP(armor, rvec, tvec);
-            if (success) {
-                // Fill basic info
-                armor_msg.type = static_cast<int>(armor.type);
-                armor_msg.number = armor.number;
-                // Fill pose
-                armor_msg.pose.position.x = tvec.at<double>(0);
-                armor_msg.pose.position.y = tvec.at<double>(1);
-                armor_msg.pose.position.z = tvec.at<double>(2);
-                // rvec to 3x3 rotation matrix
-                cv::Mat rotation_matrix;
-                cv::Rodrigues(rvec, rotation_matrix);
-                // rotation matrix to quaternion
-                tf2::Matrix3x3 tf2_rotation_matrix(
-                rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
-                rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
-                rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
-                rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
-                rotation_matrix.at<double>(2, 2));
-                tf2::Quaternion tf2_q;
-                tf2_rotation_matrix.getRotation(tf2_q);
-                armor_msg.pose.orientation = tf2::toMsg(tf2_q);
-
-                // Fill the distance to image center
-                armor_msg.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
-                armors_interfaces_.armors.emplace_back(armor_msg);
-            }
-        }
-    }
-
 
 } // namespace helios_cv

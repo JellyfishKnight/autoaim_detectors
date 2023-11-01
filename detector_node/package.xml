@@ -16,6 +16,7 @@
   <depend>armor_detectors</depend>
   <depend>autoaim_interfaces</depend>
   <depend>sensor_msgs</depend>
+  <depend>visualization_msgs</depend>
   <depend>image_transport</depend>
 
 

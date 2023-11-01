@@ -11,7 +11,8 @@
 #pragma once
 
 #include <opencv2/core.hpp>
-#include "autoaim_interfaces/msg/armors.hpp"
+#include "autoaim_utilities/Armor.hpp"
+#include "sensor_msgs/msg/camera_info.hpp"
 
 namespace helios_cv {
 
@@ -31,11 +32,11 @@ public:
 
     virtual void init() = 0;
 
-    virtual autoaim_interfaces::msg::Armors detect(const cv::Mat& images) = 0;
-
-    virtual void pack() = 0;    
+    virtual std::vector<Armor> detect(const cv::Mat& images) = 0;
 
     virtual void draw_results(cv::Mat& img) = 0;
+
+    virtual void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) = 0;
 };
 
 
