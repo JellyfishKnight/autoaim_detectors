@@ -44,7 +44,7 @@
 namespace helios_cv {
 
 using Params = detector_node::Params; 
-using ParamListen = detector_node::ParamListener;
+using ParamListener = detector_node::ParamListener;
 
 class DetectorNode : public rclcpp::Node {
 public:
