@@ -69,6 +69,8 @@ private:
 
     void energy_image_callback(sensor_msgs::msg::Image::SharedPtr image_msg);
 
+    void init_detectors();
+
     // topic utilities
     rclcpp::Publisher<autoaim_interfaces::msg::Armors>::SharedPtr armors_pub_;
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;

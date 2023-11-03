@@ -21,6 +21,53 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
     } catch (const std::exception &e) {
         RCLCPP_FATAL(logger_, "Failed to get parameters: %s, use empty params", e.what());
     }
+    // init detectors
+    init_detectors();
+    // init debug info
+    if (params_.debug) {
+        init_markers();
+        binary_img_pub_ = image_transport::create_publisher(this, "/detector/binary_img");
+        number_img_pub_ = image_transport::create_publisher(this, "/detector/number_img");
+        result_img_pub_ = image_transport::create_publisher(this, "/detector/result_img");
+        lights_data_pub_ =
+            this->create_publisher<autoaim_interfaces::msg::DebugLights>("/detector/debug_lights", 10);
+        armors_data_pub_ =
+            this->create_publisher<autoaim_interfaces::msg::DebugArmors>("/detector/debug_armors", 10);
+    }
+    // create publishers and subscribers
+    // create publishers
+    armors_pub_ = this->create_publisher<autoaim_interfaces::msg::Armors>("/armors", 10);
+    // create cam info subscriber
+    cam_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+        "/camera_info", rclcpp::SensorDataQoS(),
+        [this](sensor_msgs::msg::CameraInfo::SharedPtr camera_info) {
+        cam_center_ = cv::Point2f(camera_info->k[2], camera_info->k[5]);
+        cam_info_ = std::make_shared<sensor_msgs::msg::CameraInfo>(*camera_info);
+        pnp_solver_ = std::make_shared<PnPSolver>(cam_info_->k, camera_info->d, PnPParams{
+            params_.pnp_solver.small_armor_width,
+            params_.pnp_solver.small_armor_height,
+            params_.pnp_solver.large_armor_width,
+            params_.pnp_solver.large_armor_height,
+            params_.pnp_solver.energy_armor_width,
+            params_.pnp_solver.energy_armor_height
+        });
+        armor_detector_->set_cam_info(camera_info);
+        energy_detector_->set_cam_info(camera_info);
+        cam_info_sub_.reset();
+    });
+    // set different callback function
+    if (params_.is_armor_autoaim) {
+        image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+            "/image_raw", rclcpp::SensorDataQoS(),
+            std::bind(&DetectorNode::armor_image_callback, this, std::placeholders::_1));
+    } else {
+        image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+            "/image_raw", rclcpp::SensorDataQoS(),
+            std::bind(&DetectorNode::energy_image_callback, this, std::placeholders::_1));
+    }
+}
+
+void DetectorNode::init_detectors() {
     // create detectors
     if (params_.use_traditional) {
         // pass traditional armor detector params
@@ -91,49 +138,8 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
         armor_detector_->init();
         energy_detector_->init();
     }
-    // init debug info
-    if (params_.debug) {
-        init_markers();
-        binary_img_pub_ = image_transport::create_publisher(this, "/detector/binary_img");
-        number_img_pub_ = image_transport::create_publisher(this, "/detector/number_img");
-        result_img_pub_ = image_transport::create_publisher(this, "/detector/result_img");
-        lights_data_pub_ =
-            this->create_publisher<autoaim_interfaces::msg::DebugLights>("/detector/debug_lights", 10);
-        armors_data_pub_ =
-            this->create_publisher<autoaim_interfaces::msg::DebugArmors>("/detector/debug_armors", 10);
-    }
-    // create publishers and subscribers
-    // create publishers
-    armors_pub_ = this->create_publisher<autoaim_interfaces::msg::Armors>("/armors", 10);
-    // create cam info subscriber
-    cam_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-        "/camera_info", rclcpp::SensorDataQoS(),
-        [this](sensor_msgs::msg::CameraInfo::SharedPtr camera_info) {
-        cam_center_ = cv::Point2f(camera_info->k[2], camera_info->k[5]);
-        cam_info_ = std::make_shared<sensor_msgs::msg::CameraInfo>(*camera_info);
-        pnp_solver_ = std::make_shared<PnPSolver>(cam_info_->k, camera_info->d, PnPParams{
-            params_.pnp_solver.small_armor_width,
-            params_.pnp_solver.small_armor_height,
-            params_.pnp_solver.large_armor_width,
-            params_.pnp_solver.large_armor_height,
-            params_.pnp_solver.energy_armor_width,
-            params_.pnp_solver.energy_armor_height
-        });
-        armor_detector_->set_cam_info(camera_info);
-        energy_detector_->set_cam_info(camera_info);
-        cam_info_sub_.reset();
-    });
-    // set different callback function
-    if (params_.is_armor_autoaim) {
-        image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "/image_raw", rclcpp::SensorDataQoS(),
-            std::bind(&DetectorNode::armor_image_callback, this, std::placeholders::_1));
-    } else {
-        image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "/image_raw", rclcpp::SensorDataQoS(),
-            std::bind(&DetectorNode::energy_image_callback, this, std::placeholders::_1));
-    }
 }
+
 
 void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image_msg) {
     if (param_listener_->is_old(params_)) {
