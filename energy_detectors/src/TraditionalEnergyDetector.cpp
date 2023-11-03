@@ -2,35 +2,27 @@
 // Submodule of HeliosRobotSystem
 // for more see document: https://swjtuhelios.feishu.cn/docx/MfCsdfRxkoYk3oxWaazcfUpTnih?from=from_copylink
 #include "TraditionalEnergyDetector.hpp"
-#include <cmath>
-#include <geometry_msgs/msg/detail/point__struct.hpp>
-#include <helios_rs_interfaces/msg/detail/armor__struct.hpp>
-#include <opencv2/core/cvdef.h>
-#include <rclcpp/logging.hpp>
 
 namespace helios_cv {
-TraditionalEnergyDetector::TraditionalEnergyDetector(std::shared_ptr<helios_autoaim::Params> params) {
+TraditionalEnergyDetector::TraditionalEnergyDetector(const TEParams& params) {
     params_ = params;
 }
 
 void TraditionalEnergyDetector::set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) {
     cam_info_ = cam_info;
     cam_center_ = cv::Point2f(cam_info_->k[2], cam_info_->k[5]);
-    pnp_solver_ = std::make_shared<PnPSolver>(cam_info->k, cam_info->d, params_->pnp_solver);
 }
 
 
-bool TraditionalEnergyDetector::init_detector(std::shared_ptr<helios_autoaim::Params> params) {
-    params_ = params;
+void TraditionalEnergyDetector::init() {
     contours.clear();
     point_left.clear();
     point_right.clear();
     pts.clear();
     pts.resize(4);
-    return true;
 }
 
-helios_rs_interfaces::msg::Armors TraditionalEnergyDetector::detect_targets(const cv::Mat& image) {
+autoaim_interfaces::msg::Armors TraditionalEnergyDetector::detect(const cv::Mat& image) {
     if (!cam_info_) {
         RCLCPP_DEBUG(logger_, "Camera info not set!");
         armors_.armors.clear();
@@ -39,7 +31,7 @@ helios_rs_interfaces::msg::Armors TraditionalEnergyDetector::detect_targets(cons
     cv::Mat img = image.clone();
     cv::Mat img_thresh, img_roi;
     // binary threshold
-    binary_img = preprocess(img, params_->detector.energy_detector.detect_blue_color);
+    binary_img = preprocess(img, params_.is_blue);
     find_target_ = false;
     // find fans
     if (find_target_flow(img_thresh, contours) &&
@@ -50,9 +42,8 @@ helios_rs_interfaces::msg::Armors TraditionalEnergyDetector::detect_targets(cons
     }
     // caculate roi area
     rectangle(image, rect_roi, cv::Scalar(255, 255, 255), 2);    
-    ///TODO: return
     // return energy armor
-    helios_rs_interfaces::msg::Armor armor;
+    autoaim_interfaces::msg::Armor armor;
     geometry_msgs::msg::Point point;
     for (int i = 0; i < 4; i++) {
         point.x = pts[i].x;
@@ -80,25 +71,20 @@ void TraditionalEnergyDetector::draw_results(cv::Mat& img) {
     }
 }
 
-void TraditionalEnergyDetector::set_params(std::shared_ptr<helios_autoaim::Params> params) {
-    params_ = params;
-}
-
-
 cv::Mat TraditionalEnergyDetector::preprocess(const cv::Mat& src, bool isred) {
     cv::Mat kernel_close = getStructuringElement(cv::MORPH_RECT, cv::Size(9,9));
     cv::Mat img_gry, img_th, channels[3];
     cv::split(src, channels);
-    if (params_->detector.energy_detector.detect_blue_color) {
-        img_gry = params_->detector.energy_detector.rgb_weight_b_1 * channels[2] + 
-                params_->detector.energy_detector.rgb_weight_b_2 * channels[1] - 
-                params_->detector.energy_detector.rgb_weight_b_3*channels[0];
+    if (params_.is_blue) {
+        img_gry = params_.rgb_weight_param.rgb_weight_b_1 * channels[2] + 
+                params_.rgb_weight_param.rgb_weight_b_2 * channels[1] - 
+                params_.rgb_weight_param.rgb_weight_b_3 * channels[0];
     } else {
-        img_gry = params_->detector.energy_detector.rgb_weight_r_1 * channels[0] + 
-                params_->detector.energy_detector.rgb_weight_r_2 * channels[1] - 
-                params_->detector.energy_detector.rgb_weight_r_2 * channels[2];
+        img_gry = params_.rgb_weight_param.rgb_weight_r_1 * channels[0] + 
+                params_.rgb_weight_param.rgb_weight_r_2 * channels[1] - 
+                params_.rgb_weight_param.rgb_weight_r_2 * channels[2];
     }
-    cv::threshold(img_gry, img_th, params_->detector.energy_detector.binary_thres, 255, cv::THRESH_BINARY);
+    cv::threshold(img_gry, img_th, params_.binary_thresh, 255, cv::THRESH_BINARY);
     cv::morphologyEx(img_th, img_th, cv::MORPH_CLOSE ,kernel_close);//闭运算让目标装甲版能连成一个整体
     return img_th;
 }
@@ -155,7 +141,7 @@ bool TraditionalEnergyDetector::find_target_flow(const cv::Mat& src, std::vector
         }
         ratio = MAX(area_left, area_right)/MIN(area_left, area_right);//求两部分面积的比值
         // 经实际观测，非目标装甲板的扇页的比值一般在1～2,而目标能达到4点几 3.5
-        if(ratio < params_->detector.energy_detector.area_ratio){
+        if(ratio < params_.area_ratio){
             continue;
         }
         //求出目标装甲板在哪半部分后就可以设置结果了

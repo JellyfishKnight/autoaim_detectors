@@ -64,7 +64,7 @@ public:
 
     void set_params(const TAParams& params);
 
-    void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info);
+    void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) override;
 
 private:
 

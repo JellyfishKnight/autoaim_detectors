@@ -37,8 +37,8 @@
 // detectors
 #include "armor_detectors/NetArmorDetector.hpp"
 #include "armor_detectors/TraditionalArmorDetector.hpp"
-// #include "energy_detectors/NetEnergyDetector.hpp"
-// #include "energy_detectors/TraditionalEnergyDetector.hpp"
+#include "energy_detectors/NetEnergyDetector.hpp"
+#include "energy_detectors/TraditionalEnergyDetector.hpp"
 
 // submodule
 #include "autoaim_utilities/Armor.hpp"
@@ -96,8 +96,7 @@ private:
 
     // detector pointer
     std::shared_ptr<BaseArmorDetector> armor_detector_;
-    // std::shared_ptr<BaseEnergyDetector> energy_detector_;
-
+    std::shared_ptr<BaseEnergyDetector> energy_detector_;
 
     // param utilities
     Params params_;

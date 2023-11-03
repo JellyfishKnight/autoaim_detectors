@@ -49,8 +49,27 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
                 }
             }
         );
-        ///TODO: pass energy_detector params
-
+        energy_detector_ = std::make_shared<TraditionalEnergyDetector>(
+            TEParams{
+                BaseEnergyParam{
+                    params_.is_blue,
+                    params_.is_armor_autoaim,
+                    params_.debug,
+                    params_.use_traditional
+                },
+                static_cast<int>(params_.energy_detector.binary_thres),
+                static_cast<int>(params_.energy_detector.energy_thresh),
+                TEParams::RGBWeightParam{
+                    params_.energy_detector.rgb_weight_r_1,
+                    params_.energy_detector.rgb_weight_r_2,
+                    params_.energy_detector.rgb_weight_r_3,
+                    params_.energy_detector.rgb_weight_b_1,
+                    params_.energy_detector.rgb_weight_b_2,
+                    params_.energy_detector.rgb_weight_b_3,
+                },
+                params_.energy_detector.area_ratio
+            }
+        );
     } else {
         // pass net armor detector params
         armor_detector_ = std::make_shared<NetArmorDetector>(
@@ -98,9 +117,10 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
             params_.pnp_solver.energy_armor_height
         });
         armor_detector_->set_cam_info(camera_info);
-        // energy_detector_->set_cam_info(camera_info);
+        energy_detector_->set_cam_info(camera_info);
         cam_info_sub_.reset();
     });
+    // set different callback function
     if (params_.is_armor_autoaim) {
         image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
             "/image_raw", rclcpp::SensorDataQoS(),
@@ -122,6 +142,7 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
         image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
             "/image_raw", rclcpp::SensorDataQoS(), 
             std::bind(&DetectorNode::energy_image_callback, this, std::placeholders::_1));
+        return ;
     }
     // convert image msg to cv::Mat
     cv_bridge::CvImagePtr cv_ptr;
@@ -135,6 +156,8 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
     auto armors = armor_detector_->detect(cv_ptr->image);
     autoaim_interfaces::msg::Armor temp_armor;
     autoaim_interfaces::msg::Armors armors_msg;
+    armors_msg.header.stamp = this->now();
+    armors_msg.header.frame_id = "camera";
     for (const auto & armor : armors) {
         cv::Mat rvec, tvec;
         bool success = pnp_solver_->solvePnP(armor, rvec, tvec);
@@ -159,7 +182,6 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             tf2::Quaternion tf2_q;
             tf2_rotation_matrix.getRotation(tf2_q);
             temp_armor.pose.orientation = tf2::toMsg(tf2_q);
-
             // Fill the distance to image center
             temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
             armors_msg.armors.emplace_back(temp_armor);
@@ -167,10 +189,34 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
     }
     // publish
     armors_pub_->publish(armors_msg);
-
 }
 
 void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr image_msg) {
+    ///TODO: need improve : we should restruct the energy detector and predictor with a clear divide
+    if (param_listener_->is_old(params_)) {
+        params_ = param_listener_->get_params();
+        RCLCPP_INFO(logger_, "Params updated");
+    }
+    if (!params_.is_armor_autoaim) {
+        RCLCPP_WARN(logger_, "change state to armor!");
+        image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+            "/image_raw", rclcpp::SensorDataQoS(), 
+            std::bind(&DetectorNode::armor_image_callback, this, std::placeholders::_1));
+        return ;
+    }
+    // convert image msg to cv::Mat
+    cv_bridge::CvImagePtr cv_ptr;
+    try {
+        cv_ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
+    } catch (const cv_bridge::Exception &e) {
+        RCLCPP_ERROR(logger_, "cv_bridge exception: %s", e.what());
+        return;
+    }
+    auto armors = energy_detector_->detect(cv_ptr->image);
+    armors.header.stamp = this->now();
+    armors.header.frame_id = "camera";
+    // publish
+    armors_pub_->publish(armors);
 
 }
 
@@ -205,15 +251,14 @@ void DetectorNode::publish_markers(const autoaim_interfaces::msg::Armors& armors
     marker_pub_->publish(marker_array_);
 }
 
-
-
-
 DetectorNode::~DetectorNode() {
-
-
     binary_img_pub_.shutdown();
     number_img_pub_.shutdown();
     result_img_pub_.shutdown();
+    armor_detector_.reset();
+    energy_detector_.reset();
+    pnp_solver_.reset();
+    param_listener_.reset();
     RCLCPP_INFO(logger_, "DetectorNode destructed");
 }
 
