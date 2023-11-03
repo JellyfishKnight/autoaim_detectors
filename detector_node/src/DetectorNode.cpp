@@ -70,6 +70,8 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
                 params_.energy_detector.area_ratio
             }
         );
+        armor_detector_->init();
+        energy_detector_->init();
     } else {
         // pass net armor detector params
         armor_detector_ = std::make_shared<NetArmorDetector>(
@@ -85,6 +87,9 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
         );
         ///TODO: pass energy detector params
 
+
+        armor_detector_->init();
+        energy_detector_->init();
     }
     // init debug info
     if (params_.debug) {
