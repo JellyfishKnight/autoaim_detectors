@@ -94,8 +94,6 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
     // init debug info
     if (params_.debug) {
         init_markers();
-        marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
-            "/detector/markers", 10);
         binary_img_pub_ = image_transport::create_publisher(this, "/detector/binary_img");
         number_img_pub_ = image_transport::create_publisher(this, "/detector/number_img");
         result_img_pub_ = image_transport::create_publisher(this, "/detector/result_img");
@@ -161,8 +159,13 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
     auto armors = armor_detector_->detect(cv_ptr->image);
     autoaim_interfaces::msg::Armor temp_armor;
     autoaim_interfaces::msg::Armors armors_msg;
-    armors_msg.header.stamp = this->now();
-    armors_msg.header.frame_id = "camera";
+    if (pnp_solver_ == nullptr) {
+        RCLCPP_WARN(logger_, "Camera info not received, skip pnp solve");
+        return;
+    }
+    armors_msg.header = armor_marker_.header = text_marker_.header = image_msg->header;
+    armor_marker_.id = 0;
+    text_marker_.id = 0;
     for (const auto & armor : armors) {
         cv::Mat rvec, tvec;
         bool success = pnp_solver_->solvePnP(armor, rvec, tvec);
@@ -187,17 +190,32 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             tf2::Quaternion tf2_q;
             tf2_rotation_matrix.getRotation(tf2_q);
             temp_armor.pose.orientation = tf2::toMsg(tf2_q);
+            // Fill markers
+            armor_marker_.id++;
+            armor_marker_.scale.y = armor.type == ArmorType::SMALL ? 0.135 : 0.23;
+            armor_marker_.pose = temp_armor.pose;
+            text_marker_.id++;
+            text_marker_.pose.position = temp_armor.pose.position;
+            text_marker_.pose.position.y -= 0.1;
+            text_marker_.text = armor.classfication_result;
             // Fill the distance to image center
             temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
             armors_msg.armors.emplace_back(temp_armor);
+            marker_array_.markers.emplace_back(armor_marker_);
+            marker_array_.markers.emplace_back(text_marker_);
         }
     }
     // publish
     armors_pub_->publish(armors_msg);
+    // debug info
+    if (params_.debug) {
+        text_marker_.header = armors_msg.header;
+        publish_markers(armors_msg);
+    }
 }
 
 void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr image_msg) {
-    ///TODO: need improve : we should restruct the energy detector and predictor with a clear divide
+    ///TODO: need improve : we should restruct the energy detector and predictor with a clear line
     if (param_listener_->is_old(params_)) {
         params_ = param_listener_->get_params();
         RCLCPP_INFO(logger_, "Params updated");
@@ -247,6 +265,9 @@ void DetectorNode::init_markers() {
     text_marker_.color.g = 1.0;
     text_marker_.color.b = 1.0;
     text_marker_.lifetime = rclcpp::Duration::from_seconds(0.1);
+
+    marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+            "/detector/markers", 10);
 }
 
 void DetectorNode::publish_markers(const autoaim_interfaces::msg::Armors& armors_msgs) {
