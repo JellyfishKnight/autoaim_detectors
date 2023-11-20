@@ -21,7 +21,7 @@ detector_node:
   }
   use_traditional: {
     type: bool,
-    default_value: false,
+    default_value: true,
     description: "whether to use traditional method"
   }
   pnp_solver: 

@@ -8,8 +8,8 @@ namespace helios_cv {
         params_ = params;
         number_classifier_ = nullptr;
         number_classifier_ = std::make_shared<NumberClassifier>(
-            ament_index_cpp::get_package_share_directory("helios_autoaim") + "model/armor.onnx", 
-            ament_index_cpp::get_package_share_directory("helios_autoaim") + "model/label.txt",
+            ament_index_cpp::get_package_share_directory("armor_detectors") + "/model/mlp.onnx", 
+            ament_index_cpp::get_package_share_directory("armor_detectors") + "/model/label.txt",
             params_.number_classifier_thresh);
     }
     

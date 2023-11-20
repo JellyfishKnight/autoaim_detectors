@@ -215,6 +215,7 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
     armors_pub_->publish(armors_msg);
     // debug info
     if (params_.debug) {
+        publish_debug_infos();
         text_marker_.header = armors_msg.header;
         publish_markers(armors_msg);
     }
@@ -246,7 +247,12 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
     armors.header.frame_id = "camera";
     // publish
     armors_pub_->publish(armors);
-
+    // debug info
+    if (params_.debug) {
+        publish_debug_infos();
+        // text_marker_.header = armors_msg.header;
+        // publish_markers(armors_msg);
+    }
 }
 
 void DetectorNode::init_markers() {
@@ -281,6 +287,10 @@ void DetectorNode::publish_markers(const autoaim_interfaces::msg::Armors& armors
     armor_marker_.action = armors_msgs.armors.empty() ? Marker::DELETE : Marker::ADD;
     marker_array_.markers.emplace_back(armor_marker_);
     marker_pub_->publish(marker_array_);
+}
+
+void DetectorNode::publish_debug_infos() {
+    ///TODO: publish debug infos
 }
 
 DetectorNode::~DetectorNode() {

@@ -25,7 +25,7 @@ void NetArmorDetector::set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_
 
 void NetArmorDetector::init() {
     model_path_ = ament_index_cpp::get_package_share_directory("helios_autoaim") + 
-                    "model/armor.onnx";
+                    "/model/armor.onnx";
     complied_model_ = core_.compile_model(model_path_, "CPU");//上车后可以改成IGPU（核显）
     infer_request_ = complied_model_.create_infer_request();
     input_node_ = infer_request_.get_input_tensor();

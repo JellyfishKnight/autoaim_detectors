@@ -95,7 +95,7 @@ private:
     image_transport::Publisher result_img_pub_;
     rclcpp::Publisher<autoaim_interfaces::msg::DebugLights>::SharedPtr lights_data_pub_;
     rclcpp::Publisher<autoaim_interfaces::msg::DebugArmors>::SharedPtr armors_data_pub_;
-
+    void publish_debug_infos();
     // detector pointer
     std::shared_ptr<BaseArmorDetector> armor_detector_;
     std::shared_ptr<BaseEnergyDetector> energy_detector_;
