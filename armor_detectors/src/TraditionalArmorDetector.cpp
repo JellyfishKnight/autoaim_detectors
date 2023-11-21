@@ -196,16 +196,16 @@ namespace helios_cv {
 
         bool is_armor = light_ratio_ok && center_distance_ok && angle_ok;
         if (!light_ratio_ok) {
-            RCLCPP_DEBUG(logger_, "light ratio fail");
-            RCLCPP_DEBUG(logger_, "light_length_ratio: %f", light_length_ratio);
+            // RCLCPP_INFO(logger_, "light ratio fail");
+            // RCLCPP_INFO(logger_, "light_length_ratio: %f", light_length_ratio);
         }
         if (!center_distance_ok) {
-            RCLCPP_DEBUG(logger_, "center_distance_fail");
-            RCLCPP_DEBUG(logger_, "center_distance: %f", center_distance);
+            // RCLCPP_INFO(logger_, "center_distance_fail");
+            // RCLCPP_INFO(logger_, "center_distance: %f", center_distance);
         }
         if (!angle_ok) {
-            RCLCPP_DEBUG(logger_, "angle_fail");
-            RCLCPP_DEBUG(logger_, "angle: %f", angle);
+            // RCLCPP_DEBUG(logger_, "angle_fail");
+            // RCLCPP_INFO(logger_, "angle: %f", angle);
         }
         // Judge armor type
         ArmorType type;

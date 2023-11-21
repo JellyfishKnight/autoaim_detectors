@@ -155,7 +155,7 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
     }
     // convert image msg to cv::Mat
     try {
-        image_ = std::move(cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::BGR8)->image);
+        image_ = std::move(cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::RGB8)->image);
     } catch (const cv_bridge::Exception &e) {
         RCLCPP_ERROR(logger_, "cv_bridge exception: %s", e.what());
         return;
@@ -300,7 +300,7 @@ void DetectorNode::publish_debug_infos() {
         auto latency_s = latency_ss.str();
         cv::putText(
             image_, latency_s, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 0), 2);
-        result_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, "bgr8", image_).toImageMsg()); 
+        result_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::RGB8, image_).toImageMsg()); 
     }
 }
 
