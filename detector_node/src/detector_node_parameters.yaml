@@ -64,7 +64,7 @@ detector_node:
       }
       number_classifier_threshold: {
           type: double,
-          default_value: 70.0,
+          default_value: 0.7,
           description: "threshold of number classifier",
       }
       light:
@@ -86,7 +86,7 @@ detector_node:
       armor:
           min_light_ratio: {
             type: double,
-            default_value: 0.7,
+            default_value: 0.15,
             description: "min ratio of light",
           }
           min_small_center_distance: {
@@ -117,7 +117,7 @@ detector_node:
     net:
       classifier_thresh: {
         type: double,
-        default_value: 70,
+        default_value: 0.7,
         description: "threshold of classifier",
       }
   energy_detector:
