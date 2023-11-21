@@ -6,7 +6,6 @@
 namespace helios_cv {
     TraditionalArmorDetector::TraditionalArmorDetector(const TAParams& params) {
         params_ = params;
-        number_classifier_ = nullptr;
         number_classifier_ = std::make_shared<NumberClassifier>(
             ament_index_cpp::get_package_share_directory("armor_detectors") + "/model/mlp.onnx", 
             ament_index_cpp::get_package_share_directory("armor_detectors") + "/model/label.txt",
@@ -50,15 +49,19 @@ namespace helios_cv {
 
         // Draw armors
         for (const auto & armor : armors_) {
-            cv::line(img, armor.left_light.top, armor.right_light.bottom, cv::Scalar(0, 255, 0), 2);
-            cv::line(img, armor.left_light.bottom, armor.right_light.top, cv::Scalar(0, 255, 0), 2);
+            if (armor.type != ArmorType::INVALID) {
+                cv::line(img, armor.left_light.top, armor.right_light.bottom, cv::Scalar(0, 255, 0), 2);
+                cv::line(img, armor.left_light.bottom, armor.right_light.top, cv::Scalar(0, 255, 0), 2);
+            }
         }
 
         // Show numbers and confidence
         for (const auto & armor : armors_) {
-            cv::putText(
-            img, armor.classfication_result, armor.left_light.top, cv::FONT_HERSHEY_SIMPLEX, 0.8,
-            cv::Scalar(0, 255, 255), 2);
+            if (armor.type != ArmorType::INVALID) {
+                cv::putText(
+                img, armor.classfication_result, armor.left_light.top, cv::FONT_HERSHEY_SIMPLEX, 0.8,
+                cv::Scalar(0, 255, 255), 2);
+            }
         }
     }
 
