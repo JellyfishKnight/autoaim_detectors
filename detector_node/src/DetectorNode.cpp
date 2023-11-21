@@ -154,15 +154,14 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
         return ;
     }
     // convert image msg to cv::Mat
-    cv_bridge::CvImagePtr cv_ptr;
     try {
-        cv_ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
+        image_ = std::move(cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::BGR8)->image);
     } catch (const cv_bridge::Exception &e) {
         RCLCPP_ERROR(logger_, "cv_bridge exception: %s", e.what());
         return;
     }
     // detect
-    auto armors = armor_detector_->detect(cv_ptr->image);
+    auto armors = armor_detector_->detect(image_);
     autoaim_interfaces::msg::Armor temp_armor;
     autoaim_interfaces::msg::Armors armors_msg;
     if (pnp_solver_ == nullptr) {
@@ -291,6 +290,18 @@ void DetectorNode::publish_markers(const autoaim_interfaces::msg::Armors& armors
 
 void DetectorNode::publish_debug_infos() {
     ///TODO: publish debug infos
+    if (params_.is_armor_autoaim) {
+        armor_detector_->draw_results(image_);
+        // Draw camera center
+        cv::circle(image_, cam_center_, 5, cv::Scalar(255, 0, 0), 2);
+        // Draw latency
+        std::stringstream latency_ss;
+        // latency_ss << "Latency: " << std::fixed << std::setprecision(2) << latency_ << "ms";
+        auto latency_s = latency_ss.str();
+        cv::putText(
+            image_, latency_s, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 0), 2);
+        result_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, "bgr8", image_).toImageMsg()); 
+    }
 }
 
 DetectorNode::~DetectorNode() {

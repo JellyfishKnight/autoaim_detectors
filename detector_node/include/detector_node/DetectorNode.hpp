@@ -99,7 +99,7 @@ private:
     // detector pointer
     std::shared_ptr<BaseArmorDetector> armor_detector_;
     std::shared_ptr<BaseEnergyDetector> energy_detector_;
-
+    cv::Mat image_;
     // param utilities
     Params params_;
     std::shared_ptr<ParamListener> param_listener_;
