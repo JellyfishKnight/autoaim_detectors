@@ -177,9 +177,10 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
         cv::Mat rvec, tvec;
         bool success = pnp_solver_->solvePnP(armor, rvec, tvec);
         if (success) {
-            // Fill basic info
+            // Fill basic info  
             temp_armor.type = static_cast<int>(armor.type);
             temp_armor.number = armor.number;
+
             // Fill pose
             temp_armor.pose.position.x = tvec.at<double>(0);
             temp_armor.pose.position.y = tvec.at<double>(1);
@@ -197,8 +198,10 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             tf2::Quaternion tf2_q;
             tf2_rotation_matrix.getRotation(tf2_q);
             temp_armor.pose.orientation = tf2::toMsg(tf2_q);
+
             // Fill the distance to image center
             temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
+
             // Fill the markers
             armor_marker_.id++;
             armor_marker_.scale.y = armor.type == ArmorType::SMALL ? 0.135 : 0.23;
@@ -244,8 +247,7 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
         return;
     }
     auto armors = energy_detector_->detect(cv_ptr->image);
-    armors.header.stamp = this->now();
-    armors.header.frame_id = "camera";
+    armors.header = image_msg->header;
     // publish
     armors_pub_->publish(armors);
     // debug info
@@ -262,8 +264,8 @@ void DetectorNode::init_markers() {
     armor_marker_.ns = "armors";
     armor_marker_.action = visualization_msgs::msg::Marker::ADD;
     armor_marker_.type = visualization_msgs::msg::Marker::CUBE;
-    armor_marker_.scale.x = 0.05;
-    armor_marker_.scale.z = 0.125;
+    armor_marker_.scale.x = 0.125;
+    armor_marker_.scale.z = 0.05;
     armor_marker_.color.a = 1.0;
     armor_marker_.color.g = 0.5;
     armor_marker_.color.b = 1.0;
