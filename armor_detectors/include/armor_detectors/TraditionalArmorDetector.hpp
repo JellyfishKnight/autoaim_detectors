@@ -14,6 +14,8 @@
 // interfaces
 #include <sensor_msgs/msg/camera_info.hpp>
 #include "autoaim_interfaces/msg/armors.hpp"
+#include "autoaim_interfaces/msg/debug_armors.hpp"
+#include "autoaim_interfaces/msg/debug_lights.hpp"
 
 // opencv
 #include <opencv2/core.hpp>
@@ -34,7 +36,7 @@ namespace helios_cv {
 
 typedef struct TraditionalArmorDetectorParams : public BaseArmorParams {
     int binary_thresh;
-    int number_classifier_thresh;
+    double number_classifier_thresh;
     typedef struct LightParams {
         double min_ratio;
         double max_ratio;
@@ -65,7 +67,6 @@ public:
     void set_params(const TAParams& params);
 
     void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) override;
-
 private:
 
     cv::Mat preprocessImage(const cv::Mat & input);

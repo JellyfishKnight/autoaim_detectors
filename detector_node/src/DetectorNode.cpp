@@ -36,7 +36,7 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
     }
     // create publishers and subscribers
     // create publishers
-    armors_pub_ = this->create_publisher<autoaim_interfaces::msg::Armors>("/armors", 10);
+    armors_pub_ = this->create_publisher<autoaim_interfaces::msg::Armors>("/detector/armors", 10);
     // create cam info subscriber
     cam_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
         "/camera_info", rclcpp::SensorDataQoS(),
@@ -80,7 +80,7 @@ void DetectorNode::init_detectors() {
                     params_.use_traditional
                 },
                 static_cast<int>(params_.armor_detector.traditional.binary_thres),
-                static_cast<int>(params_.armor_detector.traditional.number_classifier_threshold),
+                params_.armor_detector.traditional.number_classifier_threshold,
                 TAParams::LightParams{
                     params_.armor_detector.traditional.light.min_ratio,
                     params_.armor_detector.traditional.light.max_ratio,
