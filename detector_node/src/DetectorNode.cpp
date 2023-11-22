@@ -168,6 +168,8 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
         RCLCPP_WARN(logger_, "Camera info not received, skip pnp solve");
         return;
     }
+    armors_msg.armors.clear();
+    marker_array_.markers.clear();
     armors_msg.header = armor_marker_.header = text_marker_.header = image_msg->header;
     armor_marker_.id = 0;
     text_marker_.id = 0;
@@ -195,7 +197,9 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             tf2::Quaternion tf2_q;
             tf2_rotation_matrix.getRotation(tf2_q);
             temp_armor.pose.orientation = tf2::toMsg(tf2_q);
-            // Fill markers
+            // Fill the distance to image center
+            temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
+            // Fill the markers
             armor_marker_.id++;
             armor_marker_.scale.y = armor.type == ArmorType::SMALL ? 0.135 : 0.23;
             armor_marker_.pose = temp_armor.pose;
@@ -203,8 +207,6 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             text_marker_.pose.position = temp_armor.pose.position;
             text_marker_.pose.position.y -= 0.1;
             text_marker_.text = armor.classfication_result;
-            // Fill the distance to image center
-            temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
             armors_msg.armors.emplace_back(temp_armor);
             marker_array_.markers.emplace_back(armor_marker_);
             marker_array_.markers.emplace_back(text_marker_);
@@ -249,8 +251,8 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
     // debug info
     if (params_.debug) {
         publish_debug_infos();
-        // text_marker_.header = armors_msg.header;
-        // publish_markers(armors_msg);
+        text_marker_.header = armors.header;
+        publish_markers(armors);
     }
 }
 
@@ -261,7 +263,7 @@ void DetectorNode::init_markers() {
     armor_marker_.action = visualization_msgs::msg::Marker::ADD;
     armor_marker_.type = visualization_msgs::msg::Marker::CUBE;
     armor_marker_.scale.x = 0.05;
-    armor_marker_.scale.y = 0.125;
+    armor_marker_.scale.z = 0.125;
     armor_marker_.color.a = 1.0;
     armor_marker_.color.g = 0.5;
     armor_marker_.color.b = 1.0;
@@ -285,6 +287,7 @@ void DetectorNode::publish_markers(const autoaim_interfaces::msg::Armors& armors
     using Marker = visualization_msgs::msg::Marker;
     armor_marker_.action = armors_msgs.armors.empty() ? Marker::DELETE : Marker::ADD;
     marker_array_.markers.emplace_back(armor_marker_);
+    RCLCPP_INFO(logger_, "Publish %d markers", static_cast<int>(marker_array_.markers.size()));
     marker_pub_->publish(marker_array_);
 }
 
