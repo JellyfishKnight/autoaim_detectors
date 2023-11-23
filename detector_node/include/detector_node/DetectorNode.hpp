@@ -33,6 +33,8 @@
 #include "autoaim_interfaces/msg/debug_lights.hpp"
 #include <visualization_msgs/msg/marker_array.hpp>
 
+// tf2
+#include <tf2_ros/transform_broadcaster.h>
 
 // detectors
 #include "armor_detectors/NetArmorDetector.hpp"
@@ -103,7 +105,8 @@ private:
     // param utilities
     Params params_;
     std::shared_ptr<ParamListener> param_listener_;
-    
+    // tf2
+    std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
     rclcpp::Logger logger_ = rclcpp::get_logger("detector_node");
 };
