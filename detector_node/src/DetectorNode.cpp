@@ -276,8 +276,8 @@ void DetectorNode::init_markers() {
     armor_marker_.ns = "armors";
     armor_marker_.action = visualization_msgs::msg::Marker::ADD;
     armor_marker_.type = visualization_msgs::msg::Marker::CUBE;
-    armor_marker_.scale.x = 0.125;
-    armor_marker_.scale.z = 0.05;
+    armor_marker_.scale.x = 0.05;
+    armor_marker_.scale.z = 0.125;
     armor_marker_.color.a = 1.0;
     armor_marker_.color.g = 0.5;
     armor_marker_.color.b = 1.0;
