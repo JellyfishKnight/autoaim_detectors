@@ -2,6 +2,11 @@
 // Submodule of HeliosRobotSystem
 // for more see document: https://swjtuhelios.feishu.cn/docx/MfCsdfRxkoYk3oxWaazcfUpTnih?from=from_copylink
 #include "TraditionalArmorDetector.hpp"
+#include <map>
+#include <opencv2/core/mat.hpp>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace helios_cv {
 TraditionalArmorDetector::TraditionalArmorDetector(const TAParams& params) {
@@ -38,33 +43,6 @@ std::vector<Armor> TraditionalArmorDetector::detect(const cv::Mat& img) {
     return armors_;
 }
 
-void TraditionalArmorDetector::draw_results(cv::Mat& img) {
-    // Draw Lights
-    for (const auto & light : lights_) {
-        cv::circle(img, light.top, 3, cv::Scalar(255, 255, 255), 1);
-        cv::circle(img, light.bottom, 3, cv::Scalar(255, 255, 255), 1);
-        auto line_color = light.color == RED ? cv::Scalar(255, 255, 0) : cv::Scalar(255, 0, 255);
-        cv::line(img, light.top, light.bottom, line_color, 1);
-    }
-
-    // Draw armors
-    for (const auto & armor : armors_) {
-        if (armor.type != ArmorType::INVALID) {
-            cv::line(img, armor.left_light.top, armor.right_light.bottom, cv::Scalar(0, 255, 0), 2);
-            cv::line(img, armor.left_light.bottom, armor.right_light.top, cv::Scalar(0, 255, 0), 2);
-        }
-    }
-
-    // Show numbers and confidence
-    for (const auto & armor : armors_) {
-        if (armor.type != ArmorType::INVALID) {
-            cv::putText(
-            img, armor.classfication_result, armor.left_light.top, cv::FONT_HERSHEY_SIMPLEX, 0.8,
-            cv::Scalar(0, 255, 255), 2);
-        }
-    }
-}
-
 void TraditionalArmorDetector::set_params(const TAParams& params) {
     params_ = params;
 }
@@ -76,6 +54,7 @@ cv::Mat TraditionalArmorDetector::preprocessImage(const cv::Mat & input) {
     cv::Mat binary_img;
     cv::threshold(gray_img, binary_img, params_.binary_thresh, 255, cv::THRESH_BINARY);
 
+    result_img_ = input.clone();
     return binary_img;
 }
 
@@ -219,6 +198,46 @@ ArmorType TraditionalArmorDetector::isArmor(const Light & light_1, const Light &
         type = ArmorType::INVALID;
     }
     return type;
+}
+
+std::map<const std::string, const cv::Mat*> TraditionalArmorDetector::get_debug_images() const {
+    std::map<const std::string, const cv::Mat*> debug_images;
+    // Draw Lights
+    for (const auto & light : lights_) {
+        cv::circle(result_img_, light.top, 3, cv::Scalar(255, 255, 255), 1);
+        cv::circle(result_img_, light.bottom, 3, cv::Scalar(255, 255, 255), 1);
+        auto line_color = light.color == RED ? cv::Scalar(255, 255, 0) : cv::Scalar(255, 0, 255);
+        cv::line(result_img_, light.top, light.bottom, line_color, 1);
+    }
+
+    // Draw armors
+    for (const auto & armor : armors_) {
+        if (armor.type != ArmorType::INVALID) {
+            cv::line(result_img_, armor.left_light.top, armor.right_light.bottom, cv::Scalar(0, 255, 0), 2);
+            cv::line(result_img_, armor.left_light.bottom, armor.right_light.top, cv::Scalar(0, 255, 0), 2);
+        }
+    }
+
+    // Show numbers and confidence
+    for (const auto & armor : armors_) {
+        if (armor.type != ArmorType::INVALID) {
+            cv::putText(
+            result_img_, armor.classfication_result, armor.left_light.top, cv::FONT_HERSHEY_SIMPLEX, 0.8,
+            cv::Scalar(0, 255, 255), 2);
+        }
+    }    
+    // Draw image center
+    cv::circle(result_img_, cam_center_, 5, cv::Scalar(255, 0, 0), 2);
+    // Draw latency
+    std::stringstream latency_ss;
+    // latency_ss << "Latency: " << std::fixed << std::setprecision(2) << latency_ << "ms";
+    auto latency_s = latency_ss.str();
+    cv::putText(
+        result_img_, latency_s, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 0), 2);
+
+    debug_images.emplace(std::pair<const std::string, const cv::Mat*>("binary_img", &binary_img_));
+    debug_images.emplace(std::pair<const std::string, const cv::Mat*>("result_img", &result_img_));
+    return debug_images;
 }
 
 } // namespace helios_cv

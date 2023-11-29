@@ -61,12 +61,12 @@ public:
     void init() override;
 
     std::vector<Armor> detect(const cv::Mat& images) override;
-
-    void draw_results(cv::Mat& img) override;
-
+    
     void set_params(const TAParams& params);
 
     void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) override;
+
+    std::map<const std::string, const cv::Mat*> get_debug_images() const override;
 private:
 
     cv::Mat preprocessImage(const cv::Mat & input);
@@ -93,9 +93,8 @@ private:
     std::vector<Armor> armors_;
     autoaim_interfaces::msg::Armors armors_interfaces_;
     // frame image
-    cv::Mat frame_;
     cv::Mat binary_img_;
-
+    cv::Mat result_img_;
     void convert_armors_into_interfaces();
 
     rclcpp::Logger logger_ = rclcpp::get_logger("TraditionalArmorDetector");

@@ -10,6 +10,7 @@
  */
 
 #include "DetectorNode.hpp"
+#include <cv_bridge/cv_bridge.h>
 
 namespace helios_cv {
     
@@ -28,7 +29,6 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
     if (params_.debug) {
         init_markers();
         binary_img_pub_ = image_transport::create_publisher(this, "/detector/binary_img");
-        number_img_pub_ = image_transport::create_publisher(this, "/detector/number_img");
         result_img_pub_ = image_transport::create_publisher(this, "/detector/result_img");
         lights_data_pub_ =
             this->create_publisher<autoaim_interfaces::msg::DebugLights>("/detector/debug_lights", 10);
@@ -265,8 +265,6 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
     // debug info
     if (params_.debug) {
         publish_debug_infos();
-        text_marker_.header = armors.header;
-        publish_markers(armors);
     }
 }
 
@@ -307,22 +305,16 @@ void DetectorNode::publish_markers(const autoaim_interfaces::msg::Armors& armors
 void DetectorNode::publish_debug_infos() {
     ///TODO: publish debug infos
     if (params_.is_armor_autoaim) {
-        armor_detector_->draw_results(image_);
-        // Draw camera center
-        cv::circle(image_, cam_center_, 5, cv::Scalar(255, 0, 0), 2);
-        // Draw latency
-        std::stringstream latency_ss;
-        // latency_ss << "Latency: " << std::fixed << std::setprecision(2) << latency_ << "ms";
-        auto latency_s = latency_ss.str();
-        cv::putText(
-            image_, latency_s, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 0), 2);
-        result_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::RGB8, image_).toImageMsg()); 
-    }
+        auto debug_images = armor_detector_->get_debug_images();
+        auto result_img = debug_images.at("result_img");
+        auto binary_img = debug_images.at("binary_img");
+        result_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::RGB8, *result_img).toImageMsg()); 
+        binary_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::MONO8, *binary_img).toImageMsg());
+    }   
 }
 
 DetectorNode::~DetectorNode() {
     binary_img_pub_.shutdown();
-    number_img_pub_.shutdown();
     result_img_pub_.shutdown();
     armor_detector_.reset();
     energy_detector_.reset();
