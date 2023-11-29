@@ -70,7 +70,7 @@ detector_node:
       light:
           min_ratio: {
             type: double,
-            default_value: 0.1,
+            default_value: 0.05,
             description: "min ratio of light",
           }
           max_ratio: {
