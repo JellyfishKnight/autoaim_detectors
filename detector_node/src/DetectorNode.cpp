@@ -10,7 +10,11 @@
  */
 
 #include "DetectorNode.hpp"
+#include <armor_detectors/BaseArmorDetector.hpp>
+#include <armor_detectors/NetArmorDetector.hpp>
+#include <armor_detectors/TraditionalArmorDetector.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <memory>
 #include <rclcpp/logging.hpp>
 
 namespace helios_cv {
@@ -119,8 +123,6 @@ void DetectorNode::init_detectors() {
                 params_.energy_detector.area_ratio
             }
         );
-        armor_detector_->init();
-        energy_detector_->init();
     } else {
         // pass net armor detector params
         armor_detector_ = std::make_shared<NetArmorDetector>(
@@ -137,16 +139,18 @@ void DetectorNode::init_detectors() {
         ///TODO: pass energy detector params
 
 
-        armor_detector_->init();
-        energy_detector_->init();
     }
+    armor_detector_->init();
+    energy_detector_->init();
 }
 
 
 void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image_msg) {
     if (param_listener_->is_old(params_)) {
+        // need imporve: apply changed param to detector
         params_ = param_listener_->get_params();
         RCLCPP_INFO(logger_, "Params updated");
+        update_detector_params();
     }
     if (!params_.is_armor_autoaim) {
         RCLCPP_WARN(logger_, "change state to energy!");
@@ -241,6 +245,7 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
     if (param_listener_->is_old(params_)) {
         params_ = param_listener_->get_params();
         RCLCPP_INFO(logger_, "Params updated");
+        update_detector_params();
     }
     if (params_.is_armor_autoaim) {
         RCLCPP_WARN(logger_, "change state to armor!");
@@ -320,6 +325,82 @@ DetectorNode::~DetectorNode() {
     pnp_solver_.reset();
     param_listener_.reset();
     RCLCPP_INFO(logger_, "DetectorNode destructed");
+}
+
+void DetectorNode::update_detector_params() {
+    // clear the detector and claim a new one
+    if (params_.is_armor_autoaim) {
+        armor_detector_.reset();
+        if (params_.use_traditional) {
+            armor_detector_ = std::make_shared<TraditionalArmorDetector>(
+                TAParams{
+                    BaseArmorParams{
+                        params_.is_blue,
+                        params_.is_armor_autoaim,
+                        params_.debug,
+                        params_.use_traditional
+                    },
+                    static_cast<int>(params_.armor_detector.traditional.binary_thres),
+                    params_.armor_detector.traditional.number_classifier_threshold,
+                    TAParams::LightParams{
+                        params_.armor_detector.traditional.light.min_ratio,
+                        params_.armor_detector.traditional.light.max_ratio,
+                        params_.armor_detector.traditional.light.max_angle
+                    },
+                    TAParams::ArmorParams{
+                        params_.armor_detector.traditional.armor.min_light_ratio,
+                        params_.armor_detector.traditional.armor.min_small_center_distance,
+                        params_.armor_detector.traditional.armor.max_small_center_distance,
+                        params_.armor_detector.traditional.armor.min_large_center_distance,
+                        params_.armor_detector.traditional.armor.max_large_center_distance,
+                        params_.armor_detector.traditional.armor.max_angle,
+                    }
+                }
+            );
+        } else {
+            armor_detector_ = std::make_shared<NetArmorDetector>(
+                NAParams{
+                    BaseArmorParams{
+                        params_.is_blue,
+                        params_.is_armor_autoaim,
+                        params_.debug,
+                        params_.use_traditional
+                    },
+                    static_cast<int>(params_.armor_detector.net.classifier_thresh),
+                }
+            );
+        }
+        armor_detector_->init();
+    } else {
+        energy_detector_.reset();
+        if (params_.use_traditional) {
+            energy_detector_ = std::make_shared<TraditionalEnergyDetector>(
+                TEParams{
+                    BaseEnergyParam{
+                        params_.is_blue,
+                        params_.is_armor_autoaim,
+                        params_.debug,
+                        params_.use_traditional
+                    },
+                    static_cast<int>(params_.energy_detector.binary_thres),
+                    static_cast<int>(params_.energy_detector.energy_thresh),
+                    TEParams::RGBWeightParam{
+                        params_.energy_detector.rgb_weight_r_1,
+                        params_.energy_detector.rgb_weight_r_2,
+                        params_.energy_detector.rgb_weight_r_3,
+                        params_.energy_detector.rgb_weight_b_1,
+                        params_.energy_detector.rgb_weight_b_2,
+                        params_.energy_detector.rgb_weight_b_3,
+                    },
+                    params_.energy_detector.area_ratio
+                }
+            );
+        } else {
+            ///TODO: network energy detector
+
+        }
+        energy_detector_->init();
+    }
 }
 
 } // namespace helios_cv

@@ -104,6 +104,7 @@ private:
     // param utilities
     Params params_;
     std::shared_ptr<ParamListener> param_listener_;
+    void update_detector_params();
     // tf2
     std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
