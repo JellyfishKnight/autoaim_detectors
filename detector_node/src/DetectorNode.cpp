@@ -152,7 +152,7 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
         RCLCPP_INFO(logger_, "Params updated");
         update_detector_params();
     }
-    if (!params_.is_armor_autoaim) {
+    if (params_.is_armor_autoaim != 0) {
         RCLCPP_WARN(logger_, "change state to energy!");
         image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
             "/image_raw", rclcpp::SensorDataQoS(), 
@@ -247,7 +247,7 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
         RCLCPP_INFO(logger_, "Params updated");
         update_detector_params();
     }
-    if (params_.is_armor_autoaim) {
+    if (params_.is_armor_autoaim == 0) {
         RCLCPP_WARN(logger_, "change state to armor!");
         image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
             "/image_raw", rclcpp::SensorDataQoS(), 
@@ -308,7 +308,7 @@ void DetectorNode::publish_markers(const autoaim_interfaces::msg::Armors& armors
 
 void DetectorNode::publish_debug_infos() {
     ///TODO: publish debug infos
-    if (params_.is_armor_autoaim) {
+    if (params_.is_armor_autoaim == 0) {
         auto debug_images = armor_detector_->get_debug_images();
         auto result_img = debug_images.at("result_img");
         auto binary_img = debug_images.at("binary_img");

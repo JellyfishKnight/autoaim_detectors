@@ -5,13 +5,13 @@ detector_node:
     description: "whether to show debug info"
   }
   is_blue: {
-    type: bool,
-    default_value: true,
+    type: int,
+    default_value: 1,
     description: "whether the armor is blue"
   }
   is_armor_autoaim: {
-    type: bool,
-    default_value: true,
+    type: int,
+    default_value: 0,
     description: "whether to use armor autoaim"
   }
   image_topic: {
@@ -20,8 +20,8 @@ detector_node:
     description: "the topic name of the image to be processed"
   }
   use_traditional: {
-    type: bool,
-    default_value: true,
+    type: int,
+    default_value: 1,
     description: "whether to use traditional method"
   }
   pnp_solver: 

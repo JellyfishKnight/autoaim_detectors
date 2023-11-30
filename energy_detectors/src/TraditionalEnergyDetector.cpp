@@ -310,4 +310,8 @@ void TraditionalEnergyDetector::setPoint(cv::RotatedRect &armor_fin, cv::Point2f
     circle_center_point.y += roi_point.y;
 }
 
+TraditionalEnergyDetector::~TraditionalEnergyDetector() {
+    
+}
+
 } // namespace helios_cv
