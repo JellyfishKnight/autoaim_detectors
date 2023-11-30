@@ -11,6 +11,7 @@
 
 #include "DetectorNode.hpp"
 #include <cv_bridge/cv_bridge.h>
+#include <rclcpp/logging.hpp>
 
 namespace helios_cv {
     
@@ -181,7 +182,6 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             // Fill basic info  
             temp_armor.type = static_cast<int>(armor.type);
             temp_armor.number = armor.number;
-
             // Fill pose
             temp_armor.pose.position.x = tvec.at<double>(0);
             temp_armor.pose.position.y = tvec.at<double>(1);
@@ -199,18 +199,17 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             tf2::Quaternion tf2_q;
             tf2_rotation_matrix.getRotation(tf2_q);
             temp_armor.pose.orientation = tf2::toMsg(tf2_q);
-
-            geometry_msgs::msg::TransformStamped ts;
-            ts.transform.translation.x = temp_armor.pose.position.x;
-            ts.transform.translation.y = temp_armor.pose.position.y;
-            ts.transform.translation.z = temp_armor.pose.position.z;
-            ts.transform.rotation = temp_armor.pose.orientation;
-            ts.header.stamp = image_msg->header.stamp;
-            ts.header.frame_id = "camera_optical_frame";
-            ts.child_frame_id = "armor";
-            tf_broadcaster_->sendTransform(ts);
-
-
+            if (params_.debug) {
+                geometry_msgs::msg::TransformStamped ts;
+                ts.transform.translation.x = temp_armor.pose.position.x;
+                ts.transform.translation.y = temp_armor.pose.position.y;
+                ts.transform.translation.z = temp_armor.pose.position.z;
+                ts.transform.rotation = temp_armor.pose.orientation;
+                ts.header.stamp = image_msg->header.stamp;
+                ts.header.frame_id = "camera_optical_frame";
+                ts.child_frame_id = "armor";
+                tf_broadcaster_->sendTransform(ts);
+            }
             // Fill the distance to image center
             temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
 
@@ -243,7 +242,7 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
         params_ = param_listener_->get_params();
         RCLCPP_INFO(logger_, "Params updated");
     }
-    if (!params_.is_armor_autoaim) {
+    if (params_.is_armor_autoaim) {
         RCLCPP_WARN(logger_, "change state to armor!");
         image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
             "/image_raw", rclcpp::SensorDataQoS(), 
