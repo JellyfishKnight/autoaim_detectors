@@ -17,7 +17,7 @@ namespace helios_cv {
 typedef struct BaseEnergyParam {
     // which means targets is blue
     bool is_blue;
-    bool is_armor_autoaim;
+    bool autoaim_mode;
     bool debug;
     bool use_traditional;
 }BEParam;

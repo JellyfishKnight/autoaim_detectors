@@ -9,7 +9,7 @@ detector_node:
     default_value: 1,
     description: "whether the armor is blue"
   }
-  is_armor_autoaim: {
+  autoaim_mode: {
     type: int,
     default_value: 0,
     description: "whether to use armor autoaim"
