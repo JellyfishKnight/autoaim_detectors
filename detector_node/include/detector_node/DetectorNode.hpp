@@ -27,15 +27,26 @@
 #include <opencv2/highgui.hpp>
 
 // interfaces
+#include <sensor_msgs/msg/detail/image__struct.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include "autoaim_interfaces/msg/armors.hpp"
 #include "autoaim_interfaces/msg/debug_armors.hpp"
 #include "autoaim_interfaces/msg/debug_lights.hpp"
 #include <visualization_msgs/msg/marker_array.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 
 // tf2
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/create_timer_ros.h>
+#include <tf2_ros/message_filter.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/convert.h>
+#include <message_filters/subscriber.h>
 
 // detectors
 #include "armor_detectors/NetArmorDetector.hpp"
@@ -56,6 +67,7 @@ namespace helios_cv {
 
 using Params = detector_node::Params; 
 using ParamListener = detector_node::ParamListener;
+using tf2_filter = tf2_ros::MessageFilter<sensor_msgs::msg::Image>;
 
 class DetectorNode : public rclcpp::Node {
 public:
@@ -77,16 +89,22 @@ private:
 
     // topic utilities
     rclcpp::Publisher<autoaim_interfaces::msg::Armors>::SharedPtr armors_pub_;
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
+    // rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
 
     // Camera info part
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_sub_;
-    cv::Point2f cam_center_;
     std::shared_ptr<sensor_msgs::msg::CameraInfo> cam_info_;
-    std::shared_ptr<PnPSolver> pnp_solver_;
+    std::shared_ptr<PnPSolver> pnp_solver_;    
     std::shared_ptr<ProjectYaw> project_yaw_;
-    
+
+    // tf2 part
+    // Subscriber with tf2 message_filter
+    std::shared_ptr<tf2_ros::Buffer> tf2_buffer_;
+    std::shared_ptr<tf2_ros::TransformListener> tf2_listener_;
+    message_filters::Subscriber<sensor_msgs::msg::Image> image_sub_;
+    std::shared_ptr<tf2_filter> tf2_filter_;
+
 
     /*debug info*/
     // markers

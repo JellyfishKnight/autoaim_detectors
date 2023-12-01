@@ -14,8 +14,17 @@
 #include <armor_detectors/NetArmorDetector.hpp>
 #include <armor_detectors/TraditionalArmorDetector.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <geometry_msgs/msg/detail/point__struct.hpp>
+#include <geometry_msgs/msg/detail/transform_stamped__struct.hpp>
 #include <memory>
+#include <opencv2/calib3d.hpp>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/core/matx.hpp>
+#include <rclcpp/duration.hpp>
 #include <rclcpp/logging.hpp>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/exceptions.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 namespace helios_cv {
     
@@ -47,31 +56,48 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
     cam_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
         "/camera_info", rclcpp::SensorDataQoS(),
         [this](sensor_msgs::msg::CameraInfo::SharedPtr camera_info) {
-        cam_center_ = cv::Point2f(camera_info->k[2], camera_info->k[5]);
         cam_info_ = std::make_shared<sensor_msgs::msg::CameraInfo>(*camera_info);
-        // pnp_solver_ = std::make_shared<PnPSolver>(cam_info_->k, camera_info->d, PnPParams{
-        //     params_.pnp_solver.small_armor_width,
-        //     params_.pnp_solver.small_armor_height,
-        //     params_.pnp_solver.large_armor_width,
-        //     params_.pnp_solver.large_armor_height,
-        //     params_.pnp_solver.energy_armor_width,
-        //     params_.pnp_solver.energy_armor_height
-        // });
-        project_yaw_ = std::make_shared<ProjectYaw>(cam_info_->k, camera_info->d);
+        pnp_solver_ = std::make_shared<PnPSolver>(cam_info_->k, camera_info->d, PnPParams{
+            params_.pnp_solver.small_armor_width,
+            params_.pnp_solver.small_armor_height,
+            params_.pnp_solver.large_armor_width,
+            params_.pnp_solver.large_armor_height,
+            params_.pnp_solver.energy_armor_width,
+            params_.pnp_solver.energy_armor_height
+        });
+        project_yaw_ = std::make_shared<ProjectYaw>(cam_info_->k, camera_info->d, tf2_buffer_);
         armor_detector_->set_cam_info(camera_info);
         energy_detector_->set_cam_info(camera_info);
         cam_info_sub_.reset();
     });
-    // set different callback function
-    if (params_.autoaim_mode) {
-        image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "/image_raw", rclcpp::SensorDataQoS(),
-            std::bind(&DetectorNode::armor_image_callback, this, std::placeholders::_1));
+    // init tf2 utilities
+    tf2_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+    // Create the timer interface before call to waitForTransform,
+    // to avoid a tf2_ros::CreateTimerInterfaceException exception
+    auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(this->get_node_base_interface(), this->get_node_timers_interface());
+    tf2_buffer_->setCreateTimerInterface(timer_interface);
+    tf2_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf2_buffer_);
+    // subscriber and filter    
+    image_sub_.subscribe(this, "/image_raw", rmw_qos_profile_sensor_data);
+    // Register a callback with tf2_ros::MessageFilter to be called when transforms are available
+    tf2_filter_ = std::make_shared<tf2_filter>(
+        image_sub_, *tf2_buffer_, "camera_optical_frame", 10, this->get_node_logging_interface(),
+        this->get_node_clock_interface(), std::chrono::duration<int>(2));
+    if (params_.autoaim_mode == 0) {
+        tf2_filter_->registerCallback(&DetectorNode::armor_image_callback, this);
     } else {
-        image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "/image_raw", rclcpp::SensorDataQoS(),
-            std::bind(&DetectorNode::energy_image_callback, this, std::placeholders::_1));
+        tf2_filter_->registerCallback(&DetectorNode::energy_image_callback, this);
     }
+    // // set different callback function
+    // if (params_.autoaim_mode) {
+    //     image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+    //         "/image_raw", rclcpp::SensorDataQoS(),
+    //         std::bind(&DetectorNode::armor_image_callback, this, std::placeholders::_1));
+    // } else {
+    //     image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+    //         "/image_raw", rclcpp::SensorDataQoS(),
+    //         std::bind(&DetectorNode::energy_image_callback, this, std::placeholders::_1));
+    // }
 }
 
 void DetectorNode::init_detectors() {
@@ -153,13 +179,13 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
         RCLCPP_INFO(logger_, "Params updated");
         update_detector_params();
     }
-    if (params_.autoaim_mode != 0) {
-        RCLCPP_WARN(logger_, "change state to energy!");
-        image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "/image_raw", rclcpp::SensorDataQoS(), 
-            std::bind(&DetectorNode::energy_image_callback, this, std::placeholders::_1));
-        return ;
-    }
+    // if (params_.autoaim_mode != 0) {
+    //     RCLCPP_WARN(logger_, "change state to energy!");
+    //     image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+    //         "/image_raw", rclcpp::SensorDataQoS(), 
+    //         std::bind(&DetectorNode::energy_image_callback, this, std::placeholders::_1));
+    //     return ;
+    // }
     // convert image msg to cv::Mat
     try {
         image_ = std::move(cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::RGB8)->image);
@@ -181,57 +207,8 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
     armor_marker_.id = 0;
     text_marker_.id = 0;
     for (const auto & armor : armors) {
-        // cv::Mat rvec, tvec;
-        // bool success = pnp_solver_->solvePnP(armor, rvec, tvec);
-        // if (success) {
-        //     // Fill basic info  
-        //     temp_armor.type = static_cast<int>(armor.type);
-        //     temp_armor.number = armor.number;
-        //     // Fill pose
-        //     temp_armor.pose.position.x = tvec.at<double>(0);
-        //     temp_armor.pose.position.y = tvec.at<double>(1);
-        //     temp_armor.pose.position.z = tvec.at<double>(2);
-        //     // rvec to 3x3 rotation matrix
-        //     cv::Mat rotation_matrix;
-        //     cv::Rodrigues(rvec, rotation_matrix);
-        //     // rotation matrix to quaternion
-        //     tf2::Matrix3x3 tf2_rotation_matrix(
-        //     rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
-        //     rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
-        //     rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
-        //     rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
-        //     rotation_matrix.at<double>(2, 2));
-        //     tf2::Quaternion tf2_q;
-        //     tf2_rotation_matrix.getRotation(tf2_q);
-        //     temp_armor.pose.orientation = tf2::toMsg(tf2_q);
-        //     if (params_.debug) {
-        //         geometry_msgs::msg::TransformStamped ts;
-        //         ts.transform.translation.x = temp_armor.pose.position.x;
-        //         ts.transform.translation.y = temp_armor.pose.position.y;
-        //         ts.transform.translation.z = temp_armor.pose.position.z;
-        //         ts.transform.rotation = temp_armor.pose.orientation;
-        //         ts.header.stamp = image_msg->header.stamp;
-        //         ts.header.frame_id = "camera_optical_frame";
-        //         ts.child_frame_id = "armor";
-        //         tf_broadcaster_->sendTransform(ts);
-        //     }
-        //     // Fill the distance to image center
-        //     temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
-
-        //     // Fill the markers
-        //     armor_marker_.id++;
-        //     armor_marker_.scale.y = armor.type == ArmorType::SMALL ? 0.135 : 0.23;
-        //     armor_marker_.pose = temp_armor.pose;
-        //     text_marker_.id++;
-        //     text_marker_.pose.position = temp_armor.pose.position;
-        //     text_marker_.pose.position.y -= 0.1;
-        //     text_marker_.text = armor.classfication_result;
-        //     armors_msg.armors.emplace_back(temp_armor);
-        //     marker_array_.markers.emplace_back(armor_marker_);
-        //     marker_array_.markers.emplace_back(text_marker_);
-        cv::Mat r_mat, tvec;
-        double distance_to_image_center = 0;
-        bool success = project_yaw_->caculate_armor_yaw(armor, distance_to_image_center, r_mat, tvec);
+        cv::Mat rvec, tvec, rotation_matrix;
+        bool success = pnp_solver_->solvePnP(armor, rvec, tvec);
         if (success) {
             // Fill basic info  
             temp_armor.type = static_cast<int>(armor.type);
@@ -240,16 +217,43 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             temp_armor.pose.position.x = tvec.at<double>(0);
             temp_armor.pose.position.y = tvec.at<double>(1);
             temp_armor.pose.position.z = tvec.at<double>(2);
-            // rotation matrix to quaternion
-            tf2::Matrix3x3 tf2_rotation_matrix(
-            r_mat.at<double>(0, 0), r_mat.at<double>(0, 1),
-            r_mat.at<double>(0, 2), r_mat.at<double>(1, 0),
-            r_mat.at<double>(1, 1), r_mat.at<double>(1, 2),
-            r_mat.at<double>(2, 0), r_mat.at<double>(2, 1),
-            r_mat.at<double>(2, 2));
-            tf2::Quaternion tf2_q;
-            tf2_rotation_matrix.getRotation(tf2_q);
-            temp_armor.pose.orientation = tf2::toMsg(tf2_q);
+            if (project_yaw_ != nullptr) {
+                geometry_msgs::msg::TransformStamped ts;
+                try {
+                    ts = tf2_buffer_->lookupTransform("odom", "camera_optical_frame", image_msg->header.stamp, 
+                        rclcpp::Duration::from_seconds(0.01));
+                } catch (const tf2::TransformException & ex) {
+                    RCLCPP_ERROR(get_logger(), "Error while transforming %s", ex.what());
+                    return;
+                }
+                cv::Vec4d q(ts.transform.rotation.x, ts.transform.rotation.y, ts.transform.rotation.z, ts.transform.rotation.w);
+                cv::Mat odom2cam;
+                cv::Rodrigues(q, odom2cam);
+                project_yaw_->caculate_armor_yaw(armor, rotation_matrix, rvec, odom2cam);
+                // rotation matrix to quaternion
+                tf2::Matrix3x3 tf2_rotation_matrix(
+                rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
+                rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
+                rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
+                rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
+                rotation_matrix.at<double>(2, 2));
+                tf2::Quaternion tf2_q;
+                tf2_rotation_matrix.getRotation(tf2_q);
+                temp_armor.pose.orientation = tf2::toMsg(tf2_q);
+            } else {
+                // rvec to 3x3 rotation matrix
+                cv::Rodrigues(rvec, rotation_matrix);
+                // rotation matrix to quaternion
+                tf2::Matrix3x3 tf2_rotation_matrix(
+                rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
+                rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
+                rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
+                rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
+                rotation_matrix.at<double>(2, 2));
+                tf2::Quaternion tf2_q;
+                tf2_rotation_matrix.getRotation(tf2_q);
+                temp_armor.pose.orientation = tf2::toMsg(tf2_q);
+            }
             if (params_.debug) {
                 geometry_msgs::msg::TransformStamped ts;
                 ts.transform.translation.x = temp_armor.pose.position.x;
@@ -262,7 +266,8 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
                 tf_broadcaster_->sendTransform(ts);
             }
             // Fill the distance to image center
-            temp_armor.distance_to_image_center = distance_to_image_center;
+            temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
+
             // Fill the markers
             armor_marker_.id++;
             armor_marker_.scale.y = armor.type == ArmorType::SMALL ? 0.135 : 0.23;
@@ -293,13 +298,13 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
         RCLCPP_INFO(logger_, "Params updated");
         update_detector_params();
     }
-    if (params_.autoaim_mode == 0) {
-        RCLCPP_WARN(logger_, "change state to armor!");
-        image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "/image_raw", rclcpp::SensorDataQoS(), 
-            std::bind(&DetectorNode::armor_image_callback, this, std::placeholders::_1));
-        return ;
-    }
+    // if (params_.autoaim_mode == 0) {
+    //     RCLCPP_WARN(logger_, "change state to armor!");
+    //     image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+    //         "/image_raw", rclcpp::SensorDataQoS(), 
+    //         std::bind(&DetectorNode::armor_image_callback, this, std::placeholders::_1));
+    //     return ;
+    // }
     // convert image msg to cv::Mat
     cv_bridge::CvImagePtr cv_ptr;
     try {

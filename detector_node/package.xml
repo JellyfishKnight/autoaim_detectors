@@ -13,6 +13,9 @@
   <depend>rclcpp_components</depend>
   <depend>generate_parameter_library</depend>
   <depend>cv_bridge</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>message_filter</depend>
   <depend>armor_detectors</depend>
   <depend>energy_detectors</depend>
   <depend>autoaim_interfaces</depend>
