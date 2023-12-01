@@ -11,6 +11,7 @@
 #pragma once
 
 // ros
+#include <cstdint>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <cv_bridge/cv_bridge.h>
@@ -89,7 +90,6 @@ private:
 
     // topic utilities
     rclcpp::Publisher<autoaim_interfaces::msg::Armors>::SharedPtr armors_pub_;
-    // rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
 
     // Camera info part
@@ -129,6 +129,8 @@ private:
     void update_detector_params();
     // tf2
     std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+
+    uint8_t last_autoaim_mode_;
 
     rclcpp::Logger logger_ = rclcpp::get_logger("detector_node");
 };

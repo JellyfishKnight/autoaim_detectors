@@ -65,7 +65,7 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
             params_.pnp_solver.energy_armor_width,
             params_.pnp_solver.energy_armor_height
         });
-        project_yaw_ = std::make_shared<ProjectYaw>(cam_info_->k, camera_info->d, tf2_buffer_);
+        project_yaw_ = std::make_shared<ProjectYaw>(cam_info_->k, camera_info->d);
         armor_detector_->set_cam_info(camera_info);
         energy_detector_->set_cam_info(camera_info);
         cam_info_sub_.reset();
@@ -88,16 +88,31 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
     } else {
         tf2_filter_->registerCallback(&DetectorNode::energy_image_callback, this);
     }
-    // // set different callback function
-    // if (params_.autoaim_mode) {
-    //     image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-    //         "/image_raw", rclcpp::SensorDataQoS(),
-    //         std::bind(&DetectorNode::armor_image_callback, this, std::placeholders::_1));
-    // } else {
-    //     image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-    //         "/image_raw", rclcpp::SensorDataQoS(),
-    //         std::bind(&DetectorNode::energy_image_callback, this, std::placeholders::_1));
-    // }
+    std::thread([this]()->void {
+        while(rclcpp::ok()) {
+            if (params_.autoaim_mode != last_autoaim_mode_) {
+                if (params_.autoaim_mode == 0) {
+                    RCLCPP_WARN(logger_, "Change state to armor mode");
+                    // reset to release running callback function
+                    tf2_filter_.reset();
+                    tf2_filter_ = std::make_shared<tf2_filter>(
+                        image_sub_, *tf2_buffer_, "camera_optical_frame", 10, this->get_node_logging_interface(),
+                        this->get_node_clock_interface(), std::chrono::duration<int>(2));
+                    tf2_filter_->registerCallback(&DetectorNode::armor_image_callback, this);   
+                    last_autoaim_mode_ = 0;     
+                } else {
+                    RCLCPP_WARN(logger_, "Change state to energy mode");
+                    // reset to release running callback function
+                    tf2_filter_.reset();
+                    tf2_filter_ = std::make_shared<tf2_filter>(
+                        image_sub_, *tf2_buffer_, "camera_optical_frame", 10, this->get_node_logging_interface(),
+                        this->get_node_clock_interface(), std::chrono::duration<int>(2));
+                    tf2_filter_->registerCallback(&DetectorNode::energy_image_callback, this);        
+                    last_autoaim_mode_ = params_.autoaim_mode;
+                }
+            }
+        }
+    }).detach();
 }
 
 void DetectorNode::init_detectors() {
@@ -179,13 +194,6 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
         RCLCPP_INFO(logger_, "Params updated");
         update_detector_params();
     }
-    // if (params_.autoaim_mode != 0) {
-    //     RCLCPP_WARN(logger_, "change state to energy!");
-    //     image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-    //         "/image_raw", rclcpp::SensorDataQoS(), 
-    //         std::bind(&DetectorNode::energy_image_callback, this, std::placeholders::_1));
-    //     return ;
-    // }
     // convert image msg to cv::Mat
     try {
         image_ = std::move(cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::RGB8)->image);
@@ -223,20 +231,23 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
                     ts = tf2_buffer_->lookupTransform("odom", "camera_optical_frame", image_msg->header.stamp, 
                         rclcpp::Duration::from_seconds(0.01));
                 } catch (const tf2::TransformException & ex) {
-                    RCLCPP_ERROR(get_logger(), "Error while transforming %s", ex.what());
+                    RCLCPP_ERROR_ONCE(get_logger(), "Error while transforming %s", ex.what());
                     return;
                 }
-                cv::Vec4d q(ts.transform.rotation.x, ts.transform.rotation.y, ts.transform.rotation.z, ts.transform.rotation.w);
-                cv::Mat odom2cam;
-                cv::Rodrigues(q, odom2cam);
-                project_yaw_->caculate_armor_yaw(armor, rotation_matrix, rvec, odom2cam);
-                // rotation matrix to quaternion
+                project_yaw_->caculate_armor_yaw(armor, rotation_matrix, tvec, ts);
+                // rotation matrix to quaternion                
+                cv::Rodrigues(rvec, rotation_matrix);
+                RCLCPP_WARN(logger_, "\n 11 %f 12 %f 13 %f \n 21 %f 22 %f 23 %f \n 31 %f 32 %f 33 %f", 
+                rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1), rotation_matrix.at<double>(0, 2),
+                rotation_matrix.at<double>(1, 0), rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
+                rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1), rotation_matrix.at<double>(2, 2));
                 tf2::Matrix3x3 tf2_rotation_matrix(
                 rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
                 rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
                 rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
                 rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
                 rotation_matrix.at<double>(2, 2));
+                // RCLCPP_WARN(logger_, "x : %f y : %f z : %f", tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2));
                 tf2::Quaternion tf2_q;
                 tf2_rotation_matrix.getRotation(tf2_q);
                 temp_armor.pose.orientation = tf2::toMsg(tf2_q);
@@ -298,13 +309,6 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
         RCLCPP_INFO(logger_, "Params updated");
         update_detector_params();
     }
-    // if (params_.autoaim_mode == 0) {
-    //     RCLCPP_WARN(logger_, "change state to armor!");
-    //     image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-    //         "/image_raw", rclcpp::SensorDataQoS(), 
-    //         std::bind(&DetectorNode::armor_image_callback, this, std::placeholders::_1));
-    //     return ;
-    // }
     // convert image msg to cv::Mat
     cv_bridge::CvImagePtr cv_ptr;
     try {
@@ -361,9 +365,10 @@ void DetectorNode::publish_debug_infos() {
     ///TODO: publish debug infos
     if (params_.autoaim_mode == 0) {
         auto debug_images = armor_detector_->get_debug_images();
-        auto result_img = debug_images.at("result_img");
+        auto result_img = const_cast<cv::Mat&>(*debug_images.at("result_img"));
+        project_yaw_->draw_projection_points(result_img);
         auto binary_img = debug_images.at("binary_img");
-        result_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::RGB8, *result_img).toImageMsg()); 
+        result_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::RGB8, result_img).toImageMsg()); 
         binary_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::MONO8, *binary_img).toImageMsg());
     }   
 }
