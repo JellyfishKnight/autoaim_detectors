@@ -49,14 +49,15 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
         [this](sensor_msgs::msg::CameraInfo::SharedPtr camera_info) {
         cam_center_ = cv::Point2f(camera_info->k[2], camera_info->k[5]);
         cam_info_ = std::make_shared<sensor_msgs::msg::CameraInfo>(*camera_info);
-        pnp_solver_ = std::make_shared<PnPSolver>(cam_info_->k, camera_info->d, PnPParams{
-            params_.pnp_solver.small_armor_width,
-            params_.pnp_solver.small_armor_height,
-            params_.pnp_solver.large_armor_width,
-            params_.pnp_solver.large_armor_height,
-            params_.pnp_solver.energy_armor_width,
-            params_.pnp_solver.energy_armor_height
-        });
+        // pnp_solver_ = std::make_shared<PnPSolver>(cam_info_->k, camera_info->d, PnPParams{
+        //     params_.pnp_solver.small_armor_width,
+        //     params_.pnp_solver.small_armor_height,
+        //     params_.pnp_solver.large_armor_width,
+        //     params_.pnp_solver.large_armor_height,
+        //     params_.pnp_solver.energy_armor_width,
+        //     params_.pnp_solver.energy_armor_height
+        // });
+        project_yaw_ = std::make_shared<ProjectYaw>(cam_info_->k, camera_info->d);
         armor_detector_->set_cam_info(camera_info);
         energy_detector_->set_cam_info(camera_info);
         cam_info_sub_.reset();
@@ -80,10 +81,10 @@ void DetectorNode::init_detectors() {
         armor_detector_ = std::make_shared<TraditionalArmorDetector>(
             TAParams{
                 BaseArmorParams{
-                    params_.is_blue,
-                    params_.autoaim_mode,
+                    static_cast<bool>(params_.is_blue),
+                    static_cast<bool>(params_.autoaim_mode),
                     params_.debug,
-                    params_.use_traditional
+                    static_cast<bool>(params_.use_traditional),
                 },
                 static_cast<int>(params_.armor_detector.traditional.binary_thres),
                 params_.armor_detector.traditional.number_classifier_threshold,
@@ -105,10 +106,10 @@ void DetectorNode::init_detectors() {
         energy_detector_ = std::make_shared<TraditionalEnergyDetector>(
             TEParams{
                 BaseEnergyParam{
-                    params_.is_blue,
-                    params_.autoaim_mode,
+                    static_cast<bool>(params_.is_blue),
+                    static_cast<bool>(params_.autoaim_mode),
                     params_.debug,
-                    params_.use_traditional
+                    static_cast<bool>(params_.use_traditional),
                 },
                 static_cast<int>(params_.energy_detector.binary_thres),
                 static_cast<int>(params_.energy_detector.energy_thresh),
@@ -128,10 +129,10 @@ void DetectorNode::init_detectors() {
         armor_detector_ = std::make_shared<NetArmorDetector>(
             NAParams{
                 BaseArmorParams{
-                    params_.is_blue,
-                    params_.autoaim_mode,
+                    static_cast<bool>(params_.is_blue),
+                    static_cast<bool>(params_.autoaim_mode),
                     params_.debug,
-                    params_.use_traditional
+                    static_cast<bool>(params_.use_traditional),
                 },
                 static_cast<int>(params_.armor_detector.net.classifier_thresh),
             }
@@ -180,8 +181,57 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
     armor_marker_.id = 0;
     text_marker_.id = 0;
     for (const auto & armor : armors) {
-        cv::Mat rvec, tvec;
-        bool success = pnp_solver_->solvePnP(armor, rvec, tvec);
+        // cv::Mat rvec, tvec;
+        // bool success = pnp_solver_->solvePnP(armor, rvec, tvec);
+        // if (success) {
+        //     // Fill basic info  
+        //     temp_armor.type = static_cast<int>(armor.type);
+        //     temp_armor.number = armor.number;
+        //     // Fill pose
+        //     temp_armor.pose.position.x = tvec.at<double>(0);
+        //     temp_armor.pose.position.y = tvec.at<double>(1);
+        //     temp_armor.pose.position.z = tvec.at<double>(2);
+        //     // rvec to 3x3 rotation matrix
+        //     cv::Mat rotation_matrix;
+        //     cv::Rodrigues(rvec, rotation_matrix);
+        //     // rotation matrix to quaternion
+        //     tf2::Matrix3x3 tf2_rotation_matrix(
+        //     rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
+        //     rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
+        //     rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
+        //     rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
+        //     rotation_matrix.at<double>(2, 2));
+        //     tf2::Quaternion tf2_q;
+        //     tf2_rotation_matrix.getRotation(tf2_q);
+        //     temp_armor.pose.orientation = tf2::toMsg(tf2_q);
+        //     if (params_.debug) {
+        //         geometry_msgs::msg::TransformStamped ts;
+        //         ts.transform.translation.x = temp_armor.pose.position.x;
+        //         ts.transform.translation.y = temp_armor.pose.position.y;
+        //         ts.transform.translation.z = temp_armor.pose.position.z;
+        //         ts.transform.rotation = temp_armor.pose.orientation;
+        //         ts.header.stamp = image_msg->header.stamp;
+        //         ts.header.frame_id = "camera_optical_frame";
+        //         ts.child_frame_id = "armor";
+        //         tf_broadcaster_->sendTransform(ts);
+        //     }
+        //     // Fill the distance to image center
+        //     temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
+
+        //     // Fill the markers
+        //     armor_marker_.id++;
+        //     armor_marker_.scale.y = armor.type == ArmorType::SMALL ? 0.135 : 0.23;
+        //     armor_marker_.pose = temp_armor.pose;
+        //     text_marker_.id++;
+        //     text_marker_.pose.position = temp_armor.pose.position;
+        //     text_marker_.pose.position.y -= 0.1;
+        //     text_marker_.text = armor.classfication_result;
+        //     armors_msg.armors.emplace_back(temp_armor);
+        //     marker_array_.markers.emplace_back(armor_marker_);
+        //     marker_array_.markers.emplace_back(text_marker_);
+        cv::Mat r_mat, tvec;
+        double distance_to_image_center = 0;
+        bool success = project_yaw_->caculate_armor_yaw(armor, distance_to_image_center, r_mat, tvec);
         if (success) {
             // Fill basic info  
             temp_armor.type = static_cast<int>(armor.type);
@@ -190,16 +240,13 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             temp_armor.pose.position.x = tvec.at<double>(0);
             temp_armor.pose.position.y = tvec.at<double>(1);
             temp_armor.pose.position.z = tvec.at<double>(2);
-            // rvec to 3x3 rotation matrix
-            cv::Mat rotation_matrix;
-            cv::Rodrigues(rvec, rotation_matrix);
             // rotation matrix to quaternion
             tf2::Matrix3x3 tf2_rotation_matrix(
-            rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
-            rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
-            rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
-            rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
-            rotation_matrix.at<double>(2, 2));
+            r_mat.at<double>(0, 0), r_mat.at<double>(0, 1),
+            r_mat.at<double>(0, 2), r_mat.at<double>(1, 0),
+            r_mat.at<double>(1, 1), r_mat.at<double>(1, 2),
+            r_mat.at<double>(2, 0), r_mat.at<double>(2, 1),
+            r_mat.at<double>(2, 2));
             tf2::Quaternion tf2_q;
             tf2_rotation_matrix.getRotation(tf2_q);
             temp_armor.pose.orientation = tf2::toMsg(tf2_q);
@@ -215,8 +262,7 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
                 tf_broadcaster_->sendTransform(ts);
             }
             // Fill the distance to image center
-            temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
-
+            temp_armor.distance_to_image_center = distance_to_image_center;
             // Fill the markers
             armor_marker_.id++;
             armor_marker_.scale.y = armor.type == ArmorType::SMALL ? 0.135 : 0.23;
@@ -329,16 +375,16 @@ DetectorNode::~DetectorNode() {
 
 void DetectorNode::update_detector_params() {
     // clear the detector and claim a new one
-    if (params_.autoaim_mode) {
+    if (params_.autoaim_mode == 0) {
         armor_detector_.reset();
         if (params_.use_traditional) {
             armor_detector_ = std::make_shared<TraditionalArmorDetector>(
                 TAParams{
                     BaseArmorParams{
-                        params_.is_blue,
-                        params_.autoaim_mode,
+                        static_cast<bool>(params_.is_blue),
+                        static_cast<bool>(params_.autoaim_mode),
                         params_.debug,
-                        params_.use_traditional
+                        static_cast<bool>(params_.use_traditional),
                     },
                     static_cast<int>(params_.armor_detector.traditional.binary_thres),
                     params_.armor_detector.traditional.number_classifier_threshold,
@@ -361,10 +407,10 @@ void DetectorNode::update_detector_params() {
             armor_detector_ = std::make_shared<NetArmorDetector>(
                 NAParams{
                     BaseArmorParams{
-                        params_.is_blue,
-                        params_.autoaim_mode,
+                        static_cast<bool>(params_.is_blue),
+                        static_cast<bool>(params_.autoaim_mode),
                         params_.debug,
-                        params_.use_traditional
+                        static_cast<bool>(params_.use_traditional),
                     },
                     static_cast<int>(params_.armor_detector.net.classifier_thresh),
                 }
@@ -377,10 +423,10 @@ void DetectorNode::update_detector_params() {
             energy_detector_ = std::make_shared<TraditionalEnergyDetector>(
                 TEParams{
                     BaseEnergyParam{
-                        params_.is_blue,
-                        params_.autoaim_mode,
+                        static_cast<bool>(params_.is_blue),
+                        static_cast<bool>(params_.autoaim_mode),
                         params_.debug,
-                        params_.use_traditional
+                        static_cast<bool>(params_.use_traditional),
                     },
                     static_cast<int>(params_.energy_detector.binary_thres),
                     static_cast<int>(params_.energy_detector.energy_thresh),
