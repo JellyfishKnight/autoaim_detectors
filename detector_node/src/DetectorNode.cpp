@@ -16,6 +16,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <geometry_msgs/msg/detail/point__struct.hpp>
 #include <geometry_msgs/msg/detail/transform_stamped__struct.hpp>
+#include <math.h>
 #include <memory>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/mat.hpp>
@@ -235,20 +236,14 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
                     RCLCPP_ERROR_ONCE(get_logger(), "Error while transforming %s", ex.what());
                     return;
                 }
-                // rotation matrix to quaternion                
-                project_yaw_->caculate_armor_yaw(armor, rotation_matrix, tvec, ts);
-                // cv::Rodrigues(rvec, rotation_matrix);
-                // RCLCPP_WARN(logger_, "\n 11 %f 12 %f 13 %f \n 21 %f 22 %f 23 %f \n 31 %f 32 %f 33 %f", 
-                // rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1), rotation_matrix.at<double>(0, 2),
-                // rotation_matrix.at<double>(1, 0), rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
-                // rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1), rotation_matrix.at<double>(2, 2));
+                cv::Mat armor_pose_in_cam;
+                project_yaw_->caculate_armor_yaw(armor, armor_pose_in_cam, tvec, ts);
                 tf2::Matrix3x3 tf2_rotation_matrix(
-                rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
-                rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
-                rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
-                rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
-                rotation_matrix.at<double>(2, 2));
-                // RCLCPP_WARN(logger_, "x : %f y : %f z : %f", tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2));
+                armor_pose_in_cam.at<double>(0, 0), armor_pose_in_cam.at<double>(0, 1),
+                armor_pose_in_cam.at<double>(0, 2), armor_pose_in_cam.at<double>(1, 0),
+                armor_pose_in_cam.at<double>(1, 1), armor_pose_in_cam.at<double>(1, 2),
+                armor_pose_in_cam.at<double>(2, 0), armor_pose_in_cam.at<double>(2, 1),
+                armor_pose_in_cam.at<double>(2, 2));
                 tf2::Quaternion tf2_q;
                 tf2_rotation_matrix.getRotation(tf2_q);
                 temp_armor.pose.orientation = tf2::toMsg(tf2_q);
@@ -367,6 +362,7 @@ void DetectorNode::publish_debug_infos() {
     if (params_.autoaim_mode == 0) {
         auto debug_images = armor_detector_->get_debug_images();
         auto result_img = const_cast<cv::Mat&>(*debug_images.at("result_img"));
+        // remove this after finished yaw
         project_yaw_->draw_projection_points(result_img);
         auto binary_img = debug_images.at("binary_img");
         result_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::RGB8, result_img).toImageMsg()); 
