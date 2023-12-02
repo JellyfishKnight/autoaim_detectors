@@ -38,7 +38,6 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 
 // tf2
-#include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/create_timer_ros.h>
@@ -127,8 +126,6 @@ private:
     Params params_;
     std::shared_ptr<ParamListener> param_listener_;
     void update_detector_params();
-    // tf2
-    std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
     uint8_t last_autoaim_mode_;
 
