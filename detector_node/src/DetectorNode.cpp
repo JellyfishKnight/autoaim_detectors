@@ -23,6 +23,7 @@
 #include <rclcpp/duration.hpp>
 #include <rclcpp/logging.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
 #include <tf2/exceptions.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
@@ -228,19 +229,19 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             if (project_yaw_ != nullptr) {
                 geometry_msgs::msg::TransformStamped ts;
                 try {
-                    ts = tf2_buffer_->lookupTransform("odom", "camera_optical_frame", image_msg->header.stamp, 
+                    ts = tf2_buffer_->lookupTransform("camera_optical_frame", "odom", image_msg->header.stamp, 
                         rclcpp::Duration::from_seconds(0.01));
                 } catch (const tf2::TransformException & ex) {
                     RCLCPP_ERROR_ONCE(get_logger(), "Error while transforming %s", ex.what());
                     return;
                 }
-                project_yaw_->caculate_armor_yaw(armor, rotation_matrix, tvec, ts);
                 // rotation matrix to quaternion                
-                cv::Rodrigues(rvec, rotation_matrix);
-                RCLCPP_WARN(logger_, "\n 11 %f 12 %f 13 %f \n 21 %f 22 %f 23 %f \n 31 %f 32 %f 33 %f", 
-                rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1), rotation_matrix.at<double>(0, 2),
-                rotation_matrix.at<double>(1, 0), rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
-                rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1), rotation_matrix.at<double>(2, 2));
+                project_yaw_->caculate_armor_yaw(armor, rotation_matrix, tvec, ts);
+                // cv::Rodrigues(rvec, rotation_matrix);
+                // RCLCPP_WARN(logger_, "\n 11 %f 12 %f 13 %f \n 21 %f 22 %f 23 %f \n 31 %f 32 %f 33 %f", 
+                // rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1), rotation_matrix.at<double>(0, 2),
+                // rotation_matrix.at<double>(1, 0), rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
+                // rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1), rotation_matrix.at<double>(2, 2));
                 tf2::Matrix3x3 tf2_rotation_matrix(
                 rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
                 rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
