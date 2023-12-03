@@ -262,7 +262,6 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             }
             // Fill the distance to image center
             temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
-
             // Fill the markers
             armor_marker_.id++;
             armor_marker_.scale.y = armor.type == ArmorType::SMALL ? 0.135 : 0.23;
