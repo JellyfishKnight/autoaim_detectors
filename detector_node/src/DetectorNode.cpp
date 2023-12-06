@@ -215,6 +215,21 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
     armors_msg.header = armor_marker_.header = text_marker_.header = image_msg->header;
     armor_marker_.id = 0;
     text_marker_.id = 0;
+    geometry_msgs::msg::TransformStamped ts_odom2cam, ts_cam2odom;
+    try {
+        ts_odom2cam = tf2_buffer_->lookupTransform("camera_optical_frame", "odom", image_msg->header.stamp, 
+            rclcpp::Duration::from_seconds(0.01));
+        ts_cam2odom = tf2_buffer_->lookupTransform("odom", "camera_optical_frame", image_msg->header.stamp, 
+            rclcpp::Duration::from_seconds(0.01));
+    } catch (const tf2::TransformException & ex) {
+        RCLCPP_ERROR_ONCE(get_logger(), "Error while transforming %s", ex.what());
+        return;
+    }
+    if (!project_yaw_) {
+        // quaternion to rotation matrix
+        project_yaw_->odom2cam_r_ = project_yaw_->get_transform_info(ts_odom2cam);
+        project_yaw_->cam2odom_r_ = project_yaw_->get_transform_info(ts_cam2odom);
+    }
     for (const auto & armor : armors) {
         cv::Mat rvec, tvec, rotation_matrix;
         bool success = pnp_solver_->solvePnP(armor, rvec, tvec);
@@ -226,17 +241,12 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             temp_armor.pose.position.x = tvec.at<double>(0);
             temp_armor.pose.position.y = tvec.at<double>(1);
             temp_armor.pose.position.z = tvec.at<double>(2);
+            // if project yaw is in error mode, use pnp solver
             if (project_yaw_ != nullptr) {
-                geometry_msgs::msg::TransformStamped ts;
-                try {
-                    ts = tf2_buffer_->lookupTransform("camera_optical_frame", "odom", image_msg->header.stamp, 
-                        rclcpp::Duration::from_seconds(0.01));
-                } catch (const tf2::TransformException & ex) {
-                    RCLCPP_ERROR_ONCE(get_logger(), "Error while transforming %s", ex.what());
-                    return;
-                }
+                // rvec to 3x3 rotation matrix
                 cv::Mat armor_pose_in_cam;
-                project_yaw_->caculate_armor_yaw(armor, armor_pose_in_cam, tvec, ts);
+                cv::Rodrigues(rvec, armor_pose_in_cam);
+                project_yaw_->caculate_armor_yaw(armor, armor_pose_in_cam, tvec);
                 tf2::Matrix3x3 tf2_rotation_matrix(
                 armor_pose_in_cam.at<double>(0, 0), armor_pose_in_cam.at<double>(0, 1),
                 armor_pose_in_cam.at<double>(0, 2), armor_pose_in_cam.at<double>(1, 0),
