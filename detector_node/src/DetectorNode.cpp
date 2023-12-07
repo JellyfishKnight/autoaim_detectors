@@ -13,6 +13,7 @@
 #include <armor_detectors/BaseArmorDetector.hpp>
 #include <armor_detectors/NetArmorDetector.hpp>
 #include <armor_detectors/TraditionalArmorDetector.hpp>
+#include <cmath>
 #include <cv_bridge/cv_bridge.h>
 #include <geometry_msgs/msg/detail/point__struct.hpp>
 #include <geometry_msgs/msg/detail/transform_stamped__struct.hpp>
@@ -225,7 +226,7 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
         RCLCPP_ERROR_ONCE(get_logger(), "Error while transforming %s", ex.what());
         return;
     }
-    if (!project_yaw_) {
+    if (project_yaw_ != nullptr) {
         // quaternion to rotation matrix
         project_yaw_->odom2cam_r_ = project_yaw_->get_transform_info(ts_odom2cam);
         project_yaw_->cam2odom_r_ = project_yaw_->get_transform_info(ts_cam2odom);
