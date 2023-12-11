@@ -322,7 +322,7 @@ void NetArmorDetector::decode(const float* output_buffer, std::vector<Object>& o
     }
 }
 
-std::map<const std::string, const cv::Mat*> NetArmorDetector::get_debug_images() const {
+std::map<const std::string, const cv::Mat*> NetArmorDetector::get_debug_images() {
     std::map<const std::string, const cv::Mat*> debug_images;
     // debug_images.emplace(std::pair<const std::string, const cv::Mat*>("binary_img", &binary_img_));
     return debug_images;

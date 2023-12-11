@@ -17,6 +17,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <geometry_msgs/msg/detail/point__struct.hpp>
 #include <geometry_msgs/msg/detail/transform_stamped__struct.hpp>
+#include <image_transport/image_transport.hpp>
 #include <math.h>
 #include <memory>
 #include <opencv2/calib3d.hpp>
@@ -24,6 +25,7 @@
 #include <opencv2/core/matx.hpp>
 #include <rclcpp/duration.hpp>
 #include <rclcpp/logging.hpp>
+#include <sensor_msgs/image_encodings.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/exceptions.h>
@@ -46,6 +48,7 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
         init_markers();
         binary_img_pub_ = image_transport::create_publisher(this, "/detector/binary_img");
         result_img_pub_ = image_transport::create_publisher(this, "/detector/result_img");
+        number_img_pub_ = image_transport::create_publisher(this, "/detector/number_img");
         lights_data_pub_ =
             this->create_publisher<autoaim_interfaces::msg::DebugLights>("/detector/debug_lights", 10);
         armors_data_pub_ =
@@ -363,8 +366,10 @@ void DetectorNode::publish_debug_infos() {
         // remove this after finished yaw
         project_yaw_->draw_projection_points(result_img);
         auto binary_img = debug_images.at("binary_img");
+        auto number_img = debug_images.at("number_img");
         result_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::RGB8, result_img).toImageMsg()); 
         binary_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::MONO8, *binary_img).toImageMsg());
+        number_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::MONO8, *number_img).toImageMsg());
     }   
 }
 

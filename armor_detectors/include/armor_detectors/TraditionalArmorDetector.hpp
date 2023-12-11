@@ -66,7 +66,7 @@ public:
 
     void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) override;
 
-    std::map<const std::string, const cv::Mat*> get_debug_images() const override;
+    std::map<const std::string, const cv::Mat*> get_debug_images() override;
 private:
 
     cv::Mat preprocessImage(const cv::Mat & input);
@@ -81,6 +81,8 @@ private:
         const Light & light_1, const Light & light_2, const std::vector<Light> & lights);
     
     ArmorType isArmor(const Light & light_1, const Light & light_2);
+
+
     // submodules
     std::shared_ptr<NumberClassifier> number_classifier_;
     // params
@@ -95,7 +97,9 @@ private:
     // frame image
     cv::Mat binary_img_;
     cv::Mat result_img_;
+    cv::Mat number_imgs_;
     void convert_armors_into_interfaces();
+    void get_all_number_images();
 
     rclcpp::Logger logger_ = rclcpp::get_logger("TraditionalArmorDetector");
 };

@@ -39,7 +39,7 @@ public:
 
     virtual void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) = 0;
 
-    virtual std::map<const std::string, const cv::Mat*> get_debug_images() const = 0;
+    virtual std::map<const std::string, const cv::Mat*> get_debug_images() = 0;
 };
 
 

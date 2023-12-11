@@ -3,7 +3,10 @@
 // for more see document: https://swjtuhelios.feishu.cn/docx/MfCsdfRxkoYk3oxWaazcfUpTnih?from=from_copylink
 #include "TraditionalArmorDetector.hpp"
 #include <map>
+#include <opencv2/core/hal/interface.h>
 #include <opencv2/core/mat.hpp>
+#include <opencv2/core/types.hpp>
+#include <rclcpp/logging.hpp>
 #include <string>
 #include <utility>
 #include <vector>
@@ -185,7 +188,7 @@ ArmorType TraditionalArmorDetector::isArmor(const Light & light_1, const Light &
     //     RCLCPP_INFO(logger_, "center_distance: %f", center_distance);
     // }
     // if (!angle_ok) {
-    //     RCLCPP_DEBUG(logger_, "angle_fail");
+    //     RCLCPP_INFO(logger_, "angle_fail");
     //     RCLCPP_INFO(logger_, "angle: %f", angle);
     // }
     // Judge armor type
@@ -200,7 +203,21 @@ ArmorType TraditionalArmorDetector::isArmor(const Light & light_1, const Light &
     return type;
 }
 
-std::map<const std::string, const cv::Mat*> TraditionalArmorDetector::get_debug_images() const {
+void TraditionalArmorDetector::get_all_number_images() {
+    // Get all number imgs
+    std::vector<cv::Mat> all_number_imgs;
+    if (armors_.empty()) {
+        number_imgs_ = cv::Mat(cv::Size(20, 28), CV_8UC1);
+    } else {
+        all_number_imgs.reserve(armors_.size());
+        for (auto armor : armors_) {
+            all_number_imgs.emplace_back(armor.number_img);
+        }
+        cv::vconcat(all_number_imgs, number_imgs_);
+    }
+}
+
+std::map<const std::string, const cv::Mat*> TraditionalArmorDetector::get_debug_images() {
     std::map<const std::string, const cv::Mat*> debug_images;
     // Draw Lights
     for (const auto & light : lights_) {
@@ -234,9 +251,10 @@ std::map<const std::string, const cv::Mat*> TraditionalArmorDetector::get_debug_
     auto latency_s = latency_ss.str();
     cv::putText(
         result_img_, latency_s, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 0), 2);
-
+    get_all_number_images();
     debug_images.emplace(std::pair<const std::string, const cv::Mat*>("binary_img", &binary_img_));
     debug_images.emplace(std::pair<const std::string, const cv::Mat*>("result_img", &result_img_));
+    debug_images.emplace(std::pair<const std::string, const cv::Mat*>("number_img", &number_imgs_));
     return debug_images;
 }
 

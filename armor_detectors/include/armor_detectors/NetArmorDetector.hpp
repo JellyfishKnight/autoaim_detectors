@@ -94,7 +94,7 @@ public:
 
     void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) override;
 
-    std::map<const std::string, const cv::Mat*> get_debug_images() const override;
+    std::map<const std::string, const cv::Mat*> get_debug_images() override;
 private:
     int argmax(const float* ptr, int len);
     cv::Mat static_resize(cv::Mat src);
