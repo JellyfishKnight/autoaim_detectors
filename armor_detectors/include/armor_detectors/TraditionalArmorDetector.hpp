@@ -66,7 +66,10 @@ public:
 
     void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) override;
 
-    std::map<const std::string, const cv::Mat*> get_debug_images() override;
+    std::tuple<const cv::Mat*, const cv::Mat*, const cv::Mat*> get_debug_images() override;
+
+    std::tuple<const autoaim_interfaces::msg::DebugLights*,
+                const autoaim_interfaces::msg::DebugArmors*> get_debug_msgs() override;       
 private:
 
     cv::Mat preprocessImage(const cv::Mat & input);
@@ -94,6 +97,11 @@ private:
     std::vector<Light> lights_;
     std::vector<Armor> armors_;
     autoaim_interfaces::msg::Armors armors_interfaces_;
+
+    // debug msgs
+    autoaim_interfaces::msg::DebugLights debug_lights_;
+    autoaim_interfaces::msg::DebugArmors debug_armors_;
+
     // frame image
     cv::Mat binary_img_;
     cv::Mat result_img_;

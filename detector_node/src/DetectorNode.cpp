@@ -13,6 +13,8 @@
 #include <armor_detectors/BaseArmorDetector.hpp>
 #include <armor_detectors/NetArmorDetector.hpp>
 #include <armor_detectors/TraditionalArmorDetector.hpp>
+#include <autoaim_interfaces/msg/detail/debug_armors__struct.hpp>
+#include <autoaim_interfaces/msg/detail/debug_lights__struct.hpp>
 #include <cmath>
 #include <cv_bridge/cv_bridge.h>
 #include <geometry_msgs/msg/detail/point__struct.hpp>
@@ -30,6 +32,7 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/exceptions.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <tuple>
 
 namespace helios_cv {
     
@@ -359,17 +362,22 @@ void DetectorNode::publish_markers(const autoaim_interfaces::msg::Armors& armors
 }
 
 void DetectorNode::publish_debug_infos() {
-    ///TODO: publish debug infos
     if (params_.autoaim_mode == 0) {
-        auto debug_images = armor_detector_->get_debug_images();
-        auto result_img = const_cast<cv::Mat&>(*debug_images.at("result_img"));
-        // remove this after finished yaw
-        project_yaw_->draw_projection_points(result_img);
-        auto binary_img = debug_images.at("binary_img");
-        auto number_img = debug_images.at("number_img");
-        result_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::RGB8, result_img).toImageMsg()); 
+        // get debug infos
+        const autoaim_interfaces::msg::DebugArmors* debug_armors_msg;
+        const autoaim_interfaces::msg::DebugLights* debug_lights_msg;
+        const cv::Mat *binary_img, *result_img, *number_img;
+        std::tie(debug_lights_msg, debug_armors_msg) = armor_detector_->get_debug_msgs();
+        std::tie(binary_img, result_img, number_img) = armor_detector_->get_debug_images();
+        auto result_img_final = result_img->clone();
+        // draw project yaw
+        project_yaw_->draw_projection_points(result_img_final);
+        result_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::RGB8, result_img_final).toImageMsg()); 
         binary_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::MONO8, *binary_img).toImageMsg());
         number_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::MONO8, *number_img).toImageMsg());
+        // Publish debug armors and light
+        armors_data_pub_->publish(*debug_armors_msg);
+        lights_data_pub_->publish(*debug_lights_msg);
     }   
 }
 

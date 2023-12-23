@@ -87,9 +87,9 @@ std::vector<Light> TraditionalArmorDetector::findLights(const cv::Mat & rbg_img,
                 for (int i = 0; i < roi.rows; i++) {
                     for (int j = 0; j < roi.cols; j++) {
                         if (cv::pointPolygonTest(contour, cv::Point2f(j + rect.x, i + rect.y), false) >= 0) {
-                        // if point is inside contour
-                        sum_r += roi.at<cv::Vec3b>(i, j)[0];
-                        sum_b += roi.at<cv::Vec3b>(i, j)[2];
+                            // if point is inside contour
+                            sum_r += roi.at<cv::Vec3b>(i, j)[0];
+                            sum_b += roi.at<cv::Vec3b>(i, j)[2];
                         }
                     }
                 }
@@ -179,18 +179,6 @@ ArmorType TraditionalArmorDetector::isArmor(const Light & light_1, const Light &
     bool angle_ok = angle < params_.armor_params.max_angle;
 
     bool is_armor = light_ratio_ok && center_distance_ok && angle_ok;
-    // if (!light_ratio_ok) {
-    //     RCLCPP_INFO(logger_, "light ratio fail");
-    //     RCLCPP_INFO(logger_, "light_length_ratio: %f", light_length_ratio);
-    // }
-    // if (!center_distance_ok) {
-    //     RCLCPP_INFO(logger_, "center_distance_fail");
-    //     RCLCPP_INFO(logger_, "center_distance: %f", center_distance);
-    // }
-    // if (!angle_ok) {
-    //     RCLCPP_INFO(logger_, "angle_fail");
-    //     RCLCPP_INFO(logger_, "angle: %f", angle);
-    // }
     // Judge armor type
     ArmorType type;
     if (is_armor) {
@@ -217,8 +205,12 @@ void TraditionalArmorDetector::get_all_number_images() {
     }
 }
 
-std::map<const std::string, const cv::Mat*> TraditionalArmorDetector::get_debug_images() {
-    std::map<const std::string, const cv::Mat*> debug_images;
+std::tuple<const autoaim_interfaces::msg::DebugLights*,
+            const autoaim_interfaces::msg::DebugArmors*> TraditionalArmorDetector::get_debug_msgs() {
+    return {&debug_lights_, &debug_armors_};
+}       
+
+std::tuple<const cv::Mat*, const cv::Mat*, const cv::Mat*> TraditionalArmorDetector::get_debug_images() {
     // Draw Lights
     for (const auto & light : lights_) {
         cv::circle(result_img_, light.top, 3, cv::Scalar(255, 255, 255), 1);
@@ -252,10 +244,7 @@ std::map<const std::string, const cv::Mat*> TraditionalArmorDetector::get_debug_
     cv::putText(
         result_img_, latency_s, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 0), 2);
     get_all_number_images();
-    debug_images.emplace(std::pair<const std::string, const cv::Mat*>("binary_img", &binary_img_));
-    debug_images.emplace(std::pair<const std::string, const cv::Mat*>("result_img", &result_img_));
-    debug_images.emplace(std::pair<const std::string, const cv::Mat*>("number_img", &number_imgs_));
-    return debug_images;
+    return {&binary_img_, &result_img_, &number_imgs_};
 }
 
 } // namespace helios_cv

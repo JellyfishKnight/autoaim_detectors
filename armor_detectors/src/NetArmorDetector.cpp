@@ -322,10 +322,14 @@ void NetArmorDetector::decode(const float* output_buffer, std::vector<Object>& o
     }
 }
 
-std::map<const std::string, const cv::Mat*> NetArmorDetector::get_debug_images() {
-    std::map<const std::string, const cv::Mat*> debug_images;
+std::tuple<const cv::Mat*, const cv::Mat*, const cv::Mat*> NetArmorDetector::get_debug_images() {
     // debug_images.emplace(std::pair<const std::string, const cv::Mat*>("binary_img", &binary_img_));
-    return debug_images;
+    return {};
+}
+
+std::tuple<const autoaim_interfaces::msg::DebugLights*,
+            const autoaim_interfaces::msg::DebugArmors*> NetArmorDetector::get_debug_msgs() {
+    return std::make_tuple(&debug_lights_, &debug_armors_);
 }
 
 } // helios_cv

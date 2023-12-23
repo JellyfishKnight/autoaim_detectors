@@ -10,10 +10,12 @@
  */
 #pragma once
 
+#include <autoaim_interfaces/msg/detail/debug_armors__struct.hpp>
+#include <autoaim_interfaces/msg/detail/debug_lights__struct.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/core/mat.hpp>
+#include <tuple>
 #include <vector>
-#include <map>
 #include "autoaim_utilities/Armor.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 
@@ -39,7 +41,10 @@ public:
 
     virtual void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) = 0;
 
-    virtual std::map<const std::string, const cv::Mat*> get_debug_images() = 0;
+    virtual std::tuple<const cv::Mat*, const cv::Mat*, const cv::Mat*> get_debug_images() = 0;
+
+    virtual std::tuple<const autoaim_interfaces::msg::DebugLights*,
+                       const autoaim_interfaces::msg::DebugArmors*> get_debug_msgs() = 0;       
 };
 
 

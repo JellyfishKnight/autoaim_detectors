@@ -5,6 +5,7 @@
 
 #include "BaseArmorDetector.hpp"
 // ros
+#include <autoaim_interfaces/msg/detail/debug_armors__struct.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <string>
@@ -94,7 +95,10 @@ public:
 
     void set_cam_info(sensor_msgs::msg::CameraInfo::SharedPtr cam_info) override;
 
-    std::map<const std::string, const cv::Mat*> get_debug_images() override;
+    std::tuple<const cv::Mat*, const cv::Mat*, const cv::Mat*> get_debug_images() override;
+
+    std::tuple<const autoaim_interfaces::msg::DebugLights*,
+                    const autoaim_interfaces::msg::DebugArmors*> get_debug_msgs() override;       
 private:
     int argmax(const float* ptr, int len);
     cv::Mat static_resize(cv::Mat src);
@@ -138,6 +142,10 @@ private:
     ov::Output<const ov::Node> input_port_;
 
     autoaim_interfaces::msg::Armors armor_interfaces_;
+    // debug info
+    autoaim_interfaces::msg::DebugArmors debug_armors_;
+    autoaim_interfaces::msg::DebugLights debug_lights_;
+
     std::vector<Armor> armors_;
 
     cv::Mat blob_;//可输入模型的数据
