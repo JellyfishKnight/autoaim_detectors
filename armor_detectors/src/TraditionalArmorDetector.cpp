@@ -2,6 +2,8 @@
 // Submodule of HeliosRobotSystem
 // for more see document: https://swjtuhelios.feishu.cn/docx/MfCsdfRxkoYk3oxWaazcfUpTnih?from=from_copylink
 #include "TraditionalArmorDetector.hpp"
+#include <autoaim_interfaces/msg/detail/debug_light__struct.hpp>
+#include <autoaim_utilities/Armor.hpp>
 #include <map>
 #include <opencv2/core/hal/interface.h>
 #include <opencv2/core/mat.hpp>
@@ -68,6 +70,7 @@ std::vector<Light> TraditionalArmorDetector::findLights(const cv::Mat & rbg_img,
     cv::findContours(binary_img, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
     vector<Light> lights;
+    debug_lights_.data.clear();
 
     for (const auto & contour : contours) {
         if (contour.size() < 5) {
@@ -105,6 +108,8 @@ std::vector<Light> TraditionalArmorDetector::findLights(const cv::Mat & rbg_img,
 std::vector<Armor> TraditionalArmorDetector::matchLights(const std::vector<Light> & lights) {
     std::vector<Armor> armors;
 
+    debug_armors_.data.clear();
+
     // Loop all the pairing of lights
     for (auto light_1 = lights.begin(); light_1 != lights.end(); light_1++) {
         for (auto light_2 = light_1 + 1; light_2 != lights.end(); light_2++) {
@@ -136,6 +141,14 @@ bool TraditionalArmorDetector::isLight(const Light & possible_light) {
     bool angle_ok = possible_light.tilt_angle < params_.light_params.max_angle;
 
     bool is_light = ratio_ok && angle_ok;
+
+    // Fill debug lights info 
+    autoaim_interfaces::msg::DebugLight debug_light;
+    debug_light.center_x = possible_light.center.x;
+    debug_light.ratio = ratio;
+    debug_light.angle = possible_light.tilt_angle;
+    debug_light.is_light = is_light;
+    debug_lights_.data.emplace_back(debug_light);
 
     return is_light;
 
@@ -179,6 +192,7 @@ ArmorType TraditionalArmorDetector::isArmor(const Light & light_1, const Light &
     bool angle_ok = angle < params_.armor_params.max_angle;
 
     bool is_armor = light_ratio_ok && center_distance_ok && angle_ok;
+
     // Judge armor type
     ArmorType type;
     if (is_armor) {
@@ -188,6 +202,16 @@ ArmorType TraditionalArmorDetector::isArmor(const Light & light_1, const Light &
     } else {
         type = ArmorType::INVALID;
     }
+
+    // Fill debug armors info
+    autoaim_interfaces::msg::DebugArmor debug_armor;
+    debug_armor.center_x = (light_1.center.x + light_2.center.x) / 2;
+    debug_armor.light_ratio = light_length_ratio;
+    debug_armor.center_distance = center_distance;
+    debug_armor.angle = angle;
+    debug_armor.type = ARMOR_TYPE_STR[static_cast<int>(type)];
+    debug_armors_.data.emplace_back(debug_armor);
+
     return type;
 }
 
