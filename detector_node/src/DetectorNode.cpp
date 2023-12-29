@@ -48,7 +48,6 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
     init_detectors();
     // init debug info
     if (params_.debug) {
-        init_markers();
         binary_img_pub_ = image_transport::create_publisher(this, "/detector/binary_img");
         result_img_pub_ = image_transport::create_publisher(this, "/detector/result_img");
         number_img_pub_ = image_transport::create_publisher(this, "/detector/number_img");
@@ -212,16 +211,12 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
     // detect
     auto armors = armor_detector_->detect(image_);
     autoaim_interfaces::msg::Armor temp_armor;
-    autoaim_interfaces::msg::Armors armors_msg;
     if (pnp_solver_ == nullptr) {
         RCLCPP_WARN(logger_, "Camera info not received, skip pnp solve");
         return;
     }
-    armors_msg.armors.clear();
-    marker_array_.markers.clear();
-    armors_msg.header = armor_marker_.header = text_marker_.header = image_msg->header;
-    armor_marker_.id = 0;
-    text_marker_.id = 0;
+    armors_msg_.armors.clear();
+    armors_msg_.header = image_msg->header;
     geometry_msgs::msg::TransformStamped ts_odom2cam, ts_cam2odom;
     try {
         ts_odom2cam = tf2_buffer_->lookupTransform("camera_optical_frame", "odom", image_msg->header.stamp, 
@@ -279,26 +274,14 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             }
             // Fill the distance to image center
             temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
-            // Fill the markers
-            armor_marker_.id++;
-            armor_marker_.scale.y = armor.type == ArmorType::SMALL ? 0.135 : 0.23;
-            armor_marker_.pose = temp_armor.pose;
-            text_marker_.id++;
-            text_marker_.pose.position = temp_armor.pose.position;
-            text_marker_.pose.position.y -= 0.1;
-            text_marker_.text = armor.classfication_result;
-            armors_msg.armors.emplace_back(temp_armor);
-            marker_array_.markers.emplace_back(armor_marker_);
-            marker_array_.markers.emplace_back(text_marker_);
+            armors_msg_.armors.emplace_back(temp_armor);
         }
     }
     // publish
-    armors_pub_->publish(armors_msg);
+    armors_pub_->publish(armors_msg_);
     // debug info
     if (params_.debug) {
         publish_debug_infos();
-        text_marker_.header = armors_msg.header;
-        publish_markers(armors_msg);
     }
 }
 
@@ -327,40 +310,6 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
     }
 }
 
-void DetectorNode::init_markers() {
-    // Visualization Marker Publisher
-    // See http://wiki.ros.org/rviz/DisplayTypes/Marker
-    armor_marker_.ns = "armors";
-    armor_marker_.action = visualization_msgs::msg::Marker::ADD;
-    armor_marker_.type = visualization_msgs::msg::Marker::CUBE;
-    armor_marker_.scale.x = 0.05;
-    armor_marker_.scale.z = 0.125;
-    armor_marker_.color.a = 1.0;
-    armor_marker_.color.g = 0.5;
-    armor_marker_.color.b = 1.0;
-    armor_marker_.lifetime = rclcpp::Duration::from_seconds(0.1);
-
-    text_marker_.ns = "classification";
-    text_marker_.action = visualization_msgs::msg::Marker::ADD;
-    text_marker_.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-    text_marker_.scale.z = 0.1;
-    text_marker_.color.a = 1.0;
-    text_marker_.color.r = 1.0;
-    text_marker_.color.g = 1.0;
-    text_marker_.color.b = 1.0;
-    text_marker_.lifetime = rclcpp::Duration::from_seconds(0.1);
-
-    marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
-            "/detector/markers", 10);
-}
-
-void DetectorNode::publish_markers(const autoaim_interfaces::msg::Armors& armors_msgs) {
-    using Marker = visualization_msgs::msg::Marker;
-    armor_marker_.action = armors_msgs.armors.empty() ? Marker::DELETE : Marker::ADD;
-    marker_array_.markers.emplace_back(armor_marker_);
-    marker_pub_->publish(marker_array_);
-}
-
 void DetectorNode::publish_debug_infos() {
     if (params_.autoaim_mode == 0) {
         // get debug infos
@@ -372,9 +321,9 @@ void DetectorNode::publish_debug_infos() {
         auto result_img_final = result_img->clone();
         // draw project yaw
         project_yaw_->draw_projection_points(result_img_final);
-        result_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::RGB8, result_img_final).toImageMsg()); 
-        binary_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::MONO8, *binary_img).toImageMsg());
-        number_img_pub_.publish(cv_bridge::CvImage(armor_marker_.header, sensor_msgs::image_encodings::MONO8, *number_img).toImageMsg());
+        result_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::RGB8, result_img_final).toImageMsg()); 
+        binary_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *binary_img).toImageMsg());
+        number_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *number_img).toImageMsg());
         // Publish debug armors and light
         armors_data_pub_->publish(*debug_armors_msg);
         lights_data_pub_->publish(*debug_lights_msg);

@@ -34,7 +34,6 @@
 #include "autoaim_interfaces/msg/armors.hpp"
 #include "autoaim_interfaces/msg/debug_armors.hpp"
 #include "autoaim_interfaces/msg/debug_lights.hpp"
-#include <visualization_msgs/msg/marker_array.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 
 // tf2
@@ -89,7 +88,7 @@ private:
 
     // topic utilities
     rclcpp::Publisher<autoaim_interfaces::msg::Armors>::SharedPtr armors_pub_;
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
+    autoaim_interfaces::msg::Armors armors_msg_;
 
     // Camera info part
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_sub_;
@@ -106,12 +105,6 @@ private:
 
 
     /*debug info*/
-    // markers
-    visualization_msgs::msg::Marker armor_marker_;
-    visualization_msgs::msg::Marker text_marker_;
-    visualization_msgs::msg::MarkerArray marker_array_;
-    void init_markers();
-    void publish_markers(const autoaim_interfaces::msg::Armors& armors_msg);
     // debug publishers
     image_transport::Publisher binary_img_pub_;
     image_transport::Publisher result_img_pub_;
