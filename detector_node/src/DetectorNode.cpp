@@ -249,8 +249,8 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
     }
     if (project_yaw_ != nullptr) {
         // quaternion to rotation matrix
-        project_yaw_->set_odom2cam(ts_odom2cam);
-        project_yaw_->set_cam2odom(ts_cam2odom);
+        project_yaw_->odom2cam_r_ = project_yaw_->get_transform_info(ts_odom2cam);
+        project_yaw_->cam2odom_r_ = project_yaw_->get_transform_info(ts_cam2odom);
     }
     for (const auto & armor : armors) {
         cv::Mat rvec, tvec, rotation_matrix;
