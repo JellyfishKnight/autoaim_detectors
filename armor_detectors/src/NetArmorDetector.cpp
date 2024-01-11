@@ -6,6 +6,8 @@
 #include <autoaim_interfaces/msg/detail/debug_lights__struct.hpp>
 #include <iterator>
 #include <opencv2/core/mat.hpp>
+#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
 #include <tuple>
 #include <vector>
 
@@ -65,11 +67,10 @@ std::vector<Armor> NetArmorDetector::detect(const cv::Mat& image) {
         // armor_pub_->publish(*msg);
         detect_vector[frames % POOL_NUM]->img_ = img_.clone();
         futs.push(pool.submit(&Inference::detect, &(*detect_vector[frames++ % POOL_NUM])));
-
+        return armors_;
     }
-
-
-    return armors_;
+    std::vector<Armor> empty_armors;
+    return empty_armors;
 }
 
 std::tuple<const autoaim_interfaces::msg::DebugLights*,
@@ -117,12 +118,12 @@ Inference::Inference(std::string model_path, const NAParams& params) {
     core_.set_property(ov::cache_dir("cache"));
     std::shared_ptr<ov::Model> model = core_.read_model(model_path);
     ov::preprocess::PrePostProcessor ppp = ov::preprocess::PrePostProcessor(model);
-    ppp.input().tensor().set_element_type(ov::element::u8).set_layout("NHWC").set_color_format(ov::preprocess::ColorFormat::RGB);
+    ppp.input().tensor().set_element_type(ov::element::u8).set_layout("NHWC").set_color_format(ov::preprocess::ColorFormat::BGR);
     ppp.input().preprocess().convert_element_type(ov::element::f32).convert_color(ov::preprocess::ColorFormat::RGB).scale({1., 1., 1.});
     ppp.input().model().set_layout("NCHW");
     ppp.output().tensor().set_element_type(ov::element::f32);
     model = ppp.build();
-    complied_model_ = core_.compile_model(model, "GPU", ov::hint::performance_mode(ov::hint::PerformanceMode::THROUGHPUT));//上车后可以改成GPU（核显）
+    complied_model_ = core_.compile_model(model, "CPU", ov::hint::performance_mode(ov::hint::PerformanceMode::THROUGHPUT));//上车后可以改成GPU（核显）
     infer_request_ = complied_model_.create_infer_request();
     input_node_ = infer_request_.get_input_tensor();
     tensor_shape_ = input_node_.get_shape();
@@ -441,24 +442,23 @@ std::vector<Armor> Inference::detect(){
     std::vector<Object> objects;
     //对推理结果进行解码
     decode(output_buffer, objects, scale_);
-    
+
     //设置返回结果
     for(auto &object : objects){
         if (object.conf < params_.net_classifier_thresh) {
             continue;
         }
-        if (object.color != params_.is_blue) {
+        if (object.color == params_.is_blue) {
             continue;
         }
         Armor armor_target;
         armor_target.number = NUMBER_LABEL[object.label];
-        armor_target.left_light.top = std::move(object.apexes[0]);
-        armor_target.left_light.bottom = std::move(object.apexes[1]);
-        armor_target.right_light.bottom = std::move(object.apexes[2]);
-        armor_target.right_light.top = std::move(object.apexes[3]);
+        armor_target.left_light.top = object.apexes[0];
+        armor_target.left_light.bottom = object.apexes[1];
+        armor_target.right_light.bottom = object.apexes[2];
+        armor_target.right_light.top = object.apexes[3];
 
         armor_target.type = judge_armor_type(object);
-        
         armor_.emplace_back(armor_target);
     }
     drawresult(armor_);
@@ -496,7 +496,7 @@ std::vector<Armor> Inference::thread_decode(const float* output_buffer) {
         if (object.conf < params_.net_classifier_thresh) {
             continue;
         }
-        if (object.color != params_.is_blue) {
+        if (object.color == params_.is_blue) {
             continue;
         }
         Armor armor_target;

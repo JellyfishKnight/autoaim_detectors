@@ -187,8 +187,27 @@ void DetectorNode::init_detectors() {
             }
         );
         ///TODO: pass energy detector params
-
-
+        energy_detector_ = std::make_shared<TraditionalEnergyDetector>(
+            TEParams{
+                BaseEnergyParam{
+                    static_cast<bool>(params_.is_blue),
+                    static_cast<bool>(params_.autoaim_mode),
+                    params_.debug,
+                    static_cast<bool>(params_.use_traditional),
+                },
+                static_cast<int>(params_.energy_detector.binary_thres),
+                static_cast<int>(params_.energy_detector.energy_thresh),
+                TEParams::RGBWeightParam{
+                    params_.energy_detector.rgb_weight_r_1,
+                    params_.energy_detector.rgb_weight_r_2,
+                    params_.energy_detector.rgb_weight_r_3,
+                    params_.energy_detector.rgb_weight_b_1,
+                    params_.energy_detector.rgb_weight_b_2,
+                    params_.energy_detector.rgb_weight_b_3,
+                },
+                params_.energy_detector.area_ratio
+            }
+        );
     }
     armor_detector_->init();
     energy_detector_->init();
@@ -317,21 +336,23 @@ void DetectorNode::publish_debug_infos() {
         const autoaim_interfaces::msg::DebugArmors* debug_armors_msg;
         const autoaim_interfaces::msg::DebugLights* debug_lights_msg;
         const cv::Mat *binary_img, *result_img, *number_img;
-        std::tie(debug_lights_msg, debug_armors_msg) = armor_detector_->get_debug_msgs();
         std::tie(binary_img, result_img, number_img) = armor_detector_->get_debug_images();
         if (result_img != nullptr) {
-        auto result_img_final = result_img->clone();
+            auto result_img_final = result_img->clone();
             // draw project yaw
             project_yaw_->draw_projection_points(result_img_final);
             result_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::RGB8, result_img_final).toImageMsg());
         }
-        if (binary_img != nullptr) 
-            binary_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *binary_img).toImageMsg());
-        if (number_img != nullptr)
-            number_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *number_img).toImageMsg());
         // Publish debug armors and light
-        armors_data_pub_->publish(*debug_armors_msg);
-        lights_data_pub_->publish(*debug_lights_msg);
+        if (params_.use_traditional) {
+            std::tie(debug_lights_msg, debug_armors_msg) = armor_detector_->get_debug_msgs();
+            armors_data_pub_->publish(*debug_armors_msg);
+            lights_data_pub_->publish(*debug_lights_msg);
+            if (binary_img != nullptr) 
+                binary_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *binary_img).toImageMsg());
+            if (number_img != nullptr)
+                number_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *number_img).toImageMsg());
+        }
     }   
 }
 

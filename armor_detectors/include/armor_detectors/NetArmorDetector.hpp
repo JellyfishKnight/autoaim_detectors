@@ -48,7 +48,7 @@ const std::vector<std::string> NUMBER_LABEL {
     "3",
     "4",
     "5",
-    "output",
+    "outpost",
     "base",  // base low
     "base"   // base high
 };
