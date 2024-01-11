@@ -16,6 +16,7 @@
 #include <autoaim_interfaces/msg/detail/debug_armors__struct.hpp>
 #include <autoaim_interfaces/msg/detail/debug_lights__struct.hpp>
 #include <cmath>
+#include <cstddef>
 #include <cv_bridge/cv_bridge.h>
 #include <geometry_msgs/msg/detail/point__struct.hpp>
 #include <geometry_msgs/msg/detail/transform_stamped__struct.hpp>
@@ -212,7 +213,7 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
     auto armors = armor_detector_->detect(image_);
     autoaim_interfaces::msg::Armor temp_armor;
     if (pnp_solver_ == nullptr) {
-        RCLCPP_WARN(logger_, "Camera info not received, skip pnp solve");
+        RCLCPP_WARN(logger_, "Camera info not received, skip");
         return;
     }
     armors_msg_.armors.clear();
@@ -318,12 +319,16 @@ void DetectorNode::publish_debug_infos() {
         const cv::Mat *binary_img, *result_img, *number_img;
         std::tie(debug_lights_msg, debug_armors_msg) = armor_detector_->get_debug_msgs();
         std::tie(binary_img, result_img, number_img) = armor_detector_->get_debug_images();
+        if (result_img != nullptr) {
         auto result_img_final = result_img->clone();
-        // draw project yaw
-        project_yaw_->draw_projection_points(result_img_final);
-        result_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::RGB8, result_img_final).toImageMsg()); 
-        binary_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *binary_img).toImageMsg());
-        number_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *number_img).toImageMsg());
+            // draw project yaw
+            project_yaw_->draw_projection_points(result_img_final);
+            result_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::RGB8, result_img_final).toImageMsg());
+        }
+        if (binary_img != nullptr) 
+            binary_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *binary_img).toImageMsg());
+        if (number_img != nullptr)
+            number_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *number_img).toImageMsg());
         // Publish debug armors and light
         armors_data_pub_->publish(*debug_armors_msg);
         lights_data_pub_->publish(*debug_lights_msg);

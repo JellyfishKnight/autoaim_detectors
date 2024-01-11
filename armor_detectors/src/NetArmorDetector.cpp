@@ -58,23 +58,38 @@ std::vector<Armor> NetArmorDetector::detect(const cv::Mat& image) {
         futs.push(pool.submit(&Inference::detect, &(*detect_vector[futs.size()])));
     } else {
         futs.front().wait();
-        std::vector<Armor> targets = std::move(futs.front().get());
+        armors_ = std::move(futs.front().get());
         futs.pop();
-        std_msgs::msg::Header header;
         // header.stamp = this->now();
         // sensor_msgs::msg::Image::SharedPtr msg = cv_bridge::CvImage(header, "rgb8", detect_vector[frames % POOL_NUM]->img_).toImageMsg();
         // armor_pub_->publish(*msg);
-        
         detect_vector[frames % POOL_NUM]->img_ = img_.clone();
         futs.push(pool.submit(&Inference::detect, &(*detect_vector[frames++ % POOL_NUM])));
 
     }
 
+
     return armors_;
+}
+
+std::tuple<const autoaim_interfaces::msg::DebugLights*,
+                    const autoaim_interfaces::msg::DebugArmors*> NetArmorDetector::get_debug_msgs() {
+    autoaim_interfaces::msg::DebugLights lights;
+    autoaim_interfaces::msg::DebugArmors armors;
+    return std::make_tuple(&lights, &armors);
+}
+
+std::tuple<const cv::Mat *, const cv::Mat *, const cv::Mat *> NetArmorDetector::get_debug_images() {
+    return std::make_tuple(nullptr, &detect_vector[frames % POOL_NUM]->img_, nullptr);
 }
 
 void NetArmorDetector::set_params(const NAParams& params) {
     params_ = params;
+}
+
+void NetArmorDetector::clear_queue(std::queue<std::future<std::vector<Armor>>>& futs) {
+    std::queue<std::future<std::vector<Armor>>> empty;
+    std::swap(futs, empty);
 }
 
 ArmorType Inference::judge_armor_type(const Object& object) {
