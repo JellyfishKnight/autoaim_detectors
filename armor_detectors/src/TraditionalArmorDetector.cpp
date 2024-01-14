@@ -203,6 +203,16 @@ ArmorType TraditionalArmorDetector::isArmor(const Light & light_1, const Light &
         type = ArmorType::INVALID;
     }
 
+    // if (!angle_ok && params_.debug) {
+    //     RCLCPP_WARN(logger_, "now angle %f, thresh %f", angle, params_.armor_params.max_angle);
+    // }
+    // if (!center_distance_ok && params_.debug) {
+    //     RCLCPP_WARN(logger_, "now distance %f, thresh %f", center_distance, params_.armor_params.max_large_center_distance);
+    // }
+    // if (!light_length_ratio && params_.debug) {
+    //     RCLCPP_WARN(logger_, "now ratio %f, thresh %f", light_length_ratio, params_.armor_params.min_light_ratio);
+    // }
+
     // Fill debug armors info
     autoaim_interfaces::msg::DebugArmor debug_armor;
     debug_armor.center_x = (light_1.center.x + light_2.center.x) / 2;
