@@ -104,6 +104,7 @@ private:
 
     int argmax(const float* ptr, int len);
     cv::Mat static_resize(cv::Mat src);
+    
     void generate_grids_and_stride(const int w, const int h, const int strides[], std::vector<GridAndStride> &grid_strides);
     void generate_yolox_proposal(std::vector<GridAndStride> &grid_strides, const float * output_buffer, float prob_threshold, std::vector<Object>& object, float scale);
     void qsort_descent_inplace(std::vector<Object> & faceobjects, int left, int right);
