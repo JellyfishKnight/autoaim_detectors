@@ -10,65 +10,102 @@
  */
 #pragma once
 
-#include <autoaim_utilities/ThreadPool.hpp>
 #include <memory>
-#include <opencv2/core/mat.hpp>
-#include <opencv2/core/types.hpp>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include <rclcpp/rclcpp.hpp>
 
 #include <rclcpp/time.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 
 #include <opencv2/core.hpp>
-#include <utility>
+#include <opencv2/imgproc.hpp>
 
+// custum utilities
 #include "autoaim_utilities/ThreadPool.hpp"
 #include "autoaim_utilities/Armor.hpp"
 
+#ifdef __x86_64__
+// openvino
+#include <openvino/openvino.hpp>
+#include <ie/inference_engine.hpp>
+#include <openvino/core/core.hpp>
+#include <openvino/runtime/infer_request.hpp>
+#elif
+
+
+#endif
+
 namespace helios_cv {
 
-typedef struct NetParams {
-    explicit NetParams(
-        const std::string& model_path,
-        int input_w,
-        int input_h,
-        int num_class,
-        int num_colors,
-        float nms_thresh,
-        int num_apex,
-        int pool_num
-    ) : MODEL_PATH(model_path),
-        INPUT_W(input_w),
-        INPUT_H(input_h),
-        NUM_CLASS(num_class),
-        NUM_COLORS(num_colors),
-        NMS_THRESH(nms_thresh),
-        NUM_APEX(num_apex),
-        POOL_NUM(pool_num) {}
-    std::string MODEL_PATH;
-    int INPUT_W;//输入图片的宽 416
-    int INPUT_H;//输入图片的高 416
-    int NUM_CLASS;//类别总数 9
-    int NUM_COLORS;//颜色 2
-    float NMS_THRESH;//NMS阈值 0.2
-    int NUM_APEX; // 4 
-    int POOL_NUM; // Thread number 3
-}NetParams;
+const std::vector<std::string> ARMOR_NUMBER_LABEL {
+    "guard",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "outpost",
+    "base",  // base low
+    "base"   // base high
+};
+
+const std::vector<std::string> ENERGY_NUMBER_LABEL {
+    ///TODO: add energy number label
+};
 
 typedef struct BaseNetDetectorParams {
     bool is_blue;
     bool autoaim_mode;
     bool debug;
     double classifier_threshold;
+    double min_large_center_distance;
+    typedef struct NetParams {
+        NetParams(
+            const std::string& model_path,
+            int input_w,
+            int input_h,
+            int num_class,
+            int num_colors,
+            float nms_thresh,
+            int num_apex,
+            int pool_num
+        ) : MODEL_PATH(model_path),
+            INPUT_W(input_w),
+            INPUT_H(input_h),
+            NUM_CLASS(num_class),
+            NUM_COLORS(num_colors),
+            NMS_THRESH(nms_thresh),
+            NUM_APEX(num_apex),
+            POOL_NUM(pool_num) {}
+        NetParams() = default;
+        std::string MODEL_PATH;
+        int INPUT_W;//输入图片的宽 416
+        int INPUT_H;//输入图片的高 416
+        int NUM_CLASS;//类别总数 9
+        int NUM_COLORS;//颜色 2
+        float NMS_THRESH;//NMS阈值 0.2
+        int NUM_APEX; // 4 
+        int POOL_NUM; // Thread number 3
+    }NetParams; 
+    NetParams net_params;
 }BaseNetDetectorParams;
+
+typedef struct ArmorsStamped {
+    rclcpp::Time stamp;
+    std::vector<Armor> armors;
+}ArmorsStamped;
+
+typedef struct ImageStamped {
+    rclcpp::Time stamp;
+    cv::Mat image;
+}ImageStamped;
 
 class BaseNetDetector {
 public:
-    BaseNetDetector(const NetParams& net_params) : net_params_(net_params) {}
-
-    ~BaseNetDetector() = default;
-
-    virtual std::vector<Armor> detect_armors(const std::pair<rclcpp::Time, cv::Mat> image_stamped) = 0;
+    virtual ArmorsStamped detect_armors(const ImageStamped& image_stamped) = 0;
 
     virtual void set_params(void* params) = 0;
 
@@ -80,12 +117,81 @@ public:
     virtual std::map<std::string, const cv::Mat*> get_debug_images() = 0;
 
 protected:
+    // Make constructor protected to avoid create a instance of BaseNetDetector
+    BaseNetDetector() = default;
+
+    ~BaseNetDetector() = default;
+
+#ifdef __x86_64__
+    class Inference{
+    public:
+        explicit Inference(std::string model_path, const BaseNetDetectorParams& params);
+        ArmorsStamped detect();
+        ArmorsStamped async_detect();
+
+        ImageStamped img_;
+    private:
+        struct Object{//存储检测结果
+            int label;//分类
+            int color;//颜色（这俩都同上）
+            float conf;//置信度
+            // cv::Point2f p1, p2, p3, p4;//左上角开始逆时针四个点]
+            std::vector<cv::Point2f> apexes;
+            cv::Rect_<float> rect;//外接矩形，nms非极大抑制用
+        };
+
+        struct GridAndStride{//特征图大小和相对于输入图像的步长大小
+            int grid0;
+            int grid1;
+            int stride;
+        };
+
+    private:
+        BaseNetDetectorParams params_;
+        float* thread_pre(cv::Mat &src);
+
+        const float* thread_infer(float *input_data);
+
+        ArmorsStamped thread_decode(const float* output);
+
+        int argmax(const float* ptr, int len);
+        cv::Mat static_resize(cv::Mat src);
+        
+        void generate_grids_and_stride(const int w, const int h, const int strides[], std::vector<GridAndStride> &grid_strides);
+        void generate_yolox_proposal(std::vector<GridAndStride> &grid_strides, const float * output_buffer, float prob_threshold, std::vector<Object>& object, float scale);
+        void qsort_descent_inplace(std::vector<Object> & faceobjects, int left, int right);
+        void qsort_descent_inplace(std::vector<Object>& objects);
+        void nms_sorted_bboxes(std::vector<Object> & faceobjects, std::vector<int>& picked, float nms_threshold);
+        void decode(const float* output_buffer, std::vector<Object>& object, float scale);
+
+        void drawresult(ArmorsStamped result);
+
+        float intersaction_area(const Object& a, const Object& b);
+        ArmorType judge_armor_type(const Object& object);
+    private:
+        /*----以下都是openvino的核心组件----*/
+        ov::Core core_;
+        ov::CompiledModel complied_model_;
+        ov::InferRequest infer_request_;
+        ov::Tensor input_node_;
+        ov::Shape tensor_shape_;
+        ov::Output<const ov::Node> input_port_;
+
+
+        float scale_;//输入大小（416*416）和原图长边的比例
+        int step_;
+
+        int dw_, dh_;
+    };
+#elif
+
+#endif
+
     sensor_msgs::msg::CameraInfo cam_info_;
     cv::Point2f cam_center_;
 
-    NetParams net_params_;
-
     std::shared_ptr<ThreadPool> thread_pool_;
+
 };
 
 

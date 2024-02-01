@@ -29,6 +29,7 @@ typedef struct BaseArmorParams{
     bool use_traditional;
 }BAParams;
 
+
 class BaseArmorDetector {
 public:
     BaseArmorDetector() = default;
