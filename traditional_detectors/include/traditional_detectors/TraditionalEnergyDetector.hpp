@@ -99,14 +99,6 @@ private:
      */
     inline void setTransform(cv::Point2f p[], cv::Point2f d[]);
     /**
-     * @brief 求两点距离
-     * 
-     * @param p1 
-     * @param p2 
-     * @return float 
-     */
-    float distance(cv::Point2f p1, cv::Point2f p2);
-    /**
      * @brief 设置ROI
      * 
      * @param src 
