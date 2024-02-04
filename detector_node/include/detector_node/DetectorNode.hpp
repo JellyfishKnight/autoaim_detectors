@@ -13,6 +13,7 @@
 // ros
 #include <cstdint>
 #include <memory>
+#include <net_detectors/BaseNetDetector.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <cv_bridge/cv_bridge.h>
 
@@ -46,12 +47,12 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/convert.h>
 #include <message_filters/subscriber.h>
+#include <traditional_detectors/BaseTraditionalDetector.hpp>
 
 // detectors
-#include "armor_detectors/NetArmorDetector.hpp"
-#include "armor_detectors/TraditionalArmorDetector.hpp"
-#include "energy_detectors/NetEnergyDetector.hpp"
-#include "energy_detectors/TraditionalEnergyDetector.hpp"
+#include "traditional_detectors/TraditionalArmorDetector.hpp"
+#include "traditional_detectors/TraditionalEnergyDetector.hpp"
+#include "net_detectors/NetDetectors.hpp"
 
 // submodule
 #include "autoaim_utilities/Armor.hpp"
@@ -103,6 +104,9 @@ private:
     message_filters::Subscriber<sensor_msgs::msg::Image> image_sub_;
     std::shared_ptr<tf2_filter> tf2_filter_;
 
+    // detectors
+    std::shared_ptr<BaseNetDetector> net_detector_;
+    std::shared_ptr<BaseTraditionalDetector> traditional_detector_;
 
     /*debug info*/
     // debug publishers
@@ -112,9 +116,6 @@ private:
     rclcpp::Publisher<autoaim_interfaces::msg::DebugLights>::SharedPtr lights_data_pub_;
     rclcpp::Publisher<autoaim_interfaces::msg::DebugArmors>::SharedPtr armors_data_pub_;
     void publish_debug_infos();
-    // detector pointer
-    std::shared_ptr<BaseArmorDetector> armor_detector_;
-    std::shared_ptr<BaseEnergyDetector> energy_detector_;
     cv::Mat image_;
     // param utilities
     Params params_;

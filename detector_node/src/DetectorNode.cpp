@@ -10,11 +10,7 @@
  */
 
 #include "DetectorNode.hpp"
-#include <armor_detectors/BaseArmorDetector.hpp>
-#include <armor_detectors/NetArmorDetector.hpp>
-#include <armor_detectors/TraditionalArmorDetector.hpp>
-#include <autoaim_interfaces/msg/detail/debug_armors__struct.hpp>
-#include <autoaim_interfaces/msg/detail/debug_lights__struct.hpp>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 #include <cmath>
 #include <cstddef>
 #include <cv_bridge/cv_bridge.h>
@@ -23,6 +19,8 @@
 #include <image_transport/image_transport.hpp>
 #include <math.h>
 #include <memory>
+#include <net_detectors/BaseNetDetector.hpp>
+#include <net_detectors/NetDetectors.hpp>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/matx.hpp>
@@ -33,7 +31,11 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/exceptions.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <traditional_detectors/BaseTraditionalDetector.hpp>
+#include <traditional_detectors/TraditionalArmorDetector.hpp>
+#include <traditional_detectors/TraditionalEnergyDetector.hpp>
 #include <tuple>
+#include <vector>
 
 namespace helios_cv {
     
@@ -74,8 +76,8 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
             params_.pnp_solver.energy_armor_height
         });
         project_yaw_ = std::make_shared<ProjectYaw>(cam_info_->k, camera_info->d);
-        armor_detector_->set_cam_info(camera_info);
-        energy_detector_->set_cam_info(camera_info);
+        net_detector_->set_cam_info(*camera_info);
+        traditional_detector_->set_cam_info(*camera_info);
         cam_info_sub_.reset();
     });
     // init tf2 utilities
@@ -125,92 +127,49 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
 
 void DetectorNode::init_detectors() {
     // create detectors
-    if (params_.use_traditional) {
-        // pass traditional armor detector params
-        armor_detector_ = std::make_shared<TraditionalArmorDetector>(
-            TAParams{
-                BaseArmorParams{
-                    static_cast<bool>(params_.is_blue),
-                    static_cast<bool>(params_.autoaim_mode),
-                    params_.debug,
-                    static_cast<bool>(params_.use_traditional),
-                },
-                static_cast<int>(params_.armor_detector.traditional.binary_thres),
-                params_.armor_detector.traditional.number_classifier_threshold,
-                TAParams::LightParams{
-                    params_.armor_detector.traditional.light.min_ratio,
-                    params_.armor_detector.traditional.light.max_ratio,
-                    params_.armor_detector.traditional.light.max_angle
-                },
-                TAParams::ArmorParams{
-                    params_.armor_detector.traditional.armor.min_light_ratio,
-                    params_.armor_detector.traditional.armor.min_small_center_distance,
-                    params_.armor_detector.traditional.armor.max_small_center_distance,
-                    params_.armor_detector.traditional.armor.min_large_center_distance,
-                    params_.armor_detector.traditional.armor.max_large_center_distance,
-                    params_.armor_detector.traditional.armor.max_angle,
-                }
+    net_detector_ = std::make_shared<OVNetDetector>(
+        BaseNetDetectorParams{
+            static_cast<bool>(params_.is_blue),
+            static_cast<bool>(params_.autoaim_mode),
+            params_.debug,
+            params_.net.classifier_thresh,
+            params_.traditional.armor_detector.armor.min_large_center_distance,
+            BaseNetDetectorParams::NetParams{
+                ament_index_cpp::get_package_share_directory("net_detectors") + "/models/" + params_.net.model_name,
+                static_cast<int>(params_.net.input_width),
+                static_cast<int>(params_.net.input_height),
+                static_cast<int>(params_.net.num_class),
+                static_cast<int>(params_.net.num_color),
+                static_cast<float>(params_.net.nms_thresh),
+                static_cast<int>(params_.net.num_apex),
+                static_cast<int>(params_.net.pool_num)
             }
-        );
-        energy_detector_ = std::make_shared<TraditionalEnergyDetector>(
-            TEParams{
-                BaseEnergyParam{
-                    static_cast<bool>(params_.is_blue),
-                    static_cast<bool>(params_.autoaim_mode),
-                    params_.debug,
-                    static_cast<bool>(params_.use_traditional),
-                },
-                static_cast<int>(params_.energy_detector.binary_thres),
-                static_cast<int>(params_.energy_detector.energy_thresh),
-                TEParams::RGBWeightParam{
-                    params_.energy_detector.rgb_weight_r_1,
-                    params_.energy_detector.rgb_weight_r_2,
-                    params_.energy_detector.rgb_weight_r_3,
-                    params_.energy_detector.rgb_weight_b_1,
-                    params_.energy_detector.rgb_weight_b_2,
-                    params_.energy_detector.rgb_weight_b_3,
-                },
-                params_.energy_detector.area_ratio
+        }
+    );
+    traditional_detector_ = std::make_shared<TraditionalArmorDetector>(
+        TraditionalArmorParams{
+            BaseTraditionalParams{
+                static_cast<bool>(params_.is_blue),
+                static_cast<bool>(params_.autoaim_mode),
+                params_.debug,
+                params_.traditional.armor_detector.binary_thres,
+            },
+            params_.traditional.armor_detector.number_classifier_threshold,
+            TraditionalArmorParams::LightParams{
+                params_.traditional.armor_detector.light.min_ratio,
+                params_.traditional.armor_detector.light.max_ratio,
+                params_.traditional.armor_detector.light.max_angle
+            },
+            TraditionalArmorParams::ArmorParams{
+                params_.traditional.armor_detector.armor.min_light_ratio,
+                params_.traditional.armor_detector.armor.min_small_center_distance,
+                params_.traditional.armor_detector.armor.max_small_center_distance,
+                params_.traditional.armor_detector.armor.min_large_center_distance,
+                params_.traditional.armor_detector.armor.max_large_center_distance,
+                params_.traditional.armor_detector.armor.max_angle
             }
-        );
-    } else {
-        // pass net armor detector params
-        armor_detector_ = std::make_shared<NetArmorDetector>(
-            NAParams{
-                BaseArmorParams{
-                    static_cast<bool>(params_.is_blue),
-                    static_cast<bool>(params_.autoaim_mode),
-                    params_.debug,
-                    static_cast<bool>(params_.use_traditional),
-                },
-                static_cast<int>(params_.armor_detector.net.classifier_thresh),
-            }
-        );
-        ///TODO: pass energy detector params
-        energy_detector_ = std::make_shared<TraditionalEnergyDetector>(
-            TEParams{
-                BaseEnergyParam{
-                    static_cast<bool>(params_.is_blue),
-                    static_cast<bool>(params_.autoaim_mode),
-                    params_.debug,
-                    static_cast<bool>(params_.use_traditional),
-                },
-                static_cast<int>(params_.energy_detector.binary_thres),
-                static_cast<int>(params_.energy_detector.energy_thresh),
-                TEParams::RGBWeightParam{
-                    params_.energy_detector.rgb_weight_r_1,
-                    params_.energy_detector.rgb_weight_r_2,
-                    params_.energy_detector.rgb_weight_r_3,
-                    params_.energy_detector.rgb_weight_b_1,
-                    params_.energy_detector.rgb_weight_b_2,
-                    params_.energy_detector.rgb_weight_b_3,
-                },
-                params_.energy_detector.area_ratio
-            }
-        );
-    }
-    armor_detector_->init();
-    energy_detector_->init();
+        }
+    );
 }
 
 
@@ -229,14 +188,21 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
         return;
     }
     // detect
-    auto armors = armor_detector_->detect(image_);
+    std::vector<Armor> armors;
+    armors_msg_.header = image_msg->header;
+    if (params_.use_traditional) {
+        armors = traditional_detector_->detect_armors(image_);
+    } else {
+        auto armors_stamped = net_detector_->detect_armors(ImageStamped{image_msg->header.stamp, image_});
+        armors = armors_stamped.armors;
+        armors_msg_.header.stamp = armors_stamped.stamp;
+    }
     autoaim_interfaces::msg::Armor temp_armor;
     if (pnp_solver_ == nullptr) {
         RCLCPP_WARN(logger_, "Camera info not received, skip");
         return;
     }
     armors_msg_.armors.clear();
-    armors_msg_.header = image_msg->header;
     geometry_msgs::msg::TransformStamped ts_odom2cam, ts_cam2odom;
     try {
         ts_odom2cam = tf2_buffer_->lookupTransform("camera_optical_frame", "odom", image_msg->header.stamp, 
@@ -320,10 +286,17 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
         RCLCPP_ERROR(logger_, "cv_bridge exception: %s", e.what());
         return;
     }
-    auto armors = energy_detector_->detect(cv_ptr->image);
-    armors.header = image_msg->header;
+    std::vector<Armor> armors;
+    armors_msg_.header = image_msg->header;
+    if (params_.use_traditional) {
+        armors = traditional_detector_->detect_armors(cv_ptr->image);
+    } else {
+        auto armors_stamped = net_detector_->detect_armors(ImageStamped{image_msg->header.stamp, cv_ptr->image});
+        armors_msg_.header.stamp = armors_stamped.stamp;
+        armors = armors_stamped.armors;
+    }
     // publish
-    armors_pub_->publish(armors);
+    // armors_pub_->publish(armors);
     // debug info
     if (params_.debug) {
         publish_debug_infos();
@@ -331,36 +304,36 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
 }
 
 void DetectorNode::publish_debug_infos() {
-    if (params_.autoaim_mode == 0) {
-        // get debug infos
-        const autoaim_interfaces::msg::DebugArmors* debug_armors_msg;
-        const autoaim_interfaces::msg::DebugLights* debug_lights_msg;
-        const cv::Mat *binary_img, *result_img, *number_img;
-        std::tie(binary_img, result_img, number_img) = armor_detector_->get_debug_images();
-        if (result_img != nullptr) {
-            auto result_img_final = result_img->clone();
-            // draw project yaw
-            project_yaw_->draw_projection_points(result_img_final);
-            result_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::RGB8, result_img_final).toImageMsg());
-        }
-        // Publish debug armors and light
-        if (params_.use_traditional) {
-            std::tie(debug_lights_msg, debug_armors_msg) = armor_detector_->get_debug_msgs();
-            armors_data_pub_->publish(*debug_armors_msg);
-            lights_data_pub_->publish(*debug_lights_msg);
-            if (binary_img != nullptr) 
-                binary_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *binary_img).toImageMsg());
-            if (number_img != nullptr)
-                number_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *number_img).toImageMsg());
-        }
-    }   
+    // if (params_.autoaim_mode == 0) {
+    //     // get debug infos
+    //     const autoaim_interfaces::msg::DebugArmors* debug_armors_msg;
+    //     const autoaim_interfaces::msg::DebugLights* debug_lights_msg;
+    //     const cv::Mat *binary_img, *result_img, *number_img;
+    //     if (result_img != nullptr) {
+    //         auto result_img_final = result_img->clone();
+    //         // draw project yaw
+    //         project_yaw_->draw_projection_points(result_img_final);
+    //         result_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::RGB8, result_img_final).toImageMsg());
+    //     }
+    //     // Publish debug armors and light
+    //     if (params_.use_traditional) {
+    //         std::tie(binary_img, result_img, number_img) = armor_detector_->get_debug_images();
+    //         std::tie(debug_lights_msg, debug_armors_msg) = armor_detector_->get_debug_msgs();
+    //         armors_data_pub_->publish(*debug_armors_msg);
+    //         lights_data_pub_->publish(*debug_lights_msg);
+    //         if (binary_img != nullptr) 
+    //             binary_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *binary_img).toImageMsg());
+    //         if (number_img != nullptr)
+    //             number_img_pub_.publish(cv_bridge::CvImage(armors_msg_.header, sensor_msgs::image_encodings::MONO8, *number_img).toImageMsg());
+    //     }
+    // }   
 }
 
 DetectorNode::~DetectorNode() {
     binary_img_pub_.shutdown();
     result_img_pub_.shutdown();
-    armor_detector_.reset();
-    energy_detector_.reset();
+    traditional_detector_.reset();
+    net_detector_.reset();
     pnp_solver_.reset();
     param_listener_.reset();
     RCLCPP_INFO(logger_, "DetectorNode destructed");
@@ -368,77 +341,57 @@ DetectorNode::~DetectorNode() {
 
 void DetectorNode::update_detector_params() {
     // clear the detector and claim a new one
+    TraditionalEnergyParams traditional_energy_params;
+    TraditionalArmorParams traditional_armor_params;
+    BaseNetDetectorParams net_params;
+    traditional_energy_params.energy_thresh = params_.traditional.energy_detector.energy_thresh;
+    traditional_energy_params.binary_threshold = params_.traditional.energy_detector.binary_thres;
+    traditional_energy_params.area_ratio = params_.traditional.energy_detector.area_ratio;
+    traditional_energy_params.debug = traditional_armor_params.debug = net_params.debug = params_.debug;
+    traditional_energy_params.autoaim_mode = traditional_armor_params.autoaim_mode = net_params.autoaim_mode = params_.autoaim_mode;
+    traditional_energy_params.is_blue = traditional_armor_params.is_blue = net_params.is_blue = params_.is_blue;
+    traditional_energy_params.rgb_weight_b_1 = params_.traditional.energy_detector.rgb_weight_b_1;
+    traditional_energy_params.rgb_weight_b_2 = params_.traditional.energy_detector.rgb_weight_b_2;
+    traditional_energy_params.rgb_weight_b_3 = params_.traditional.energy_detector.rgb_weight_b_3;
+    traditional_energy_params.rgb_weight_r_1 = params_.traditional.energy_detector.rgb_weight_r_1;
+    traditional_energy_params.rgb_weight_r_2 = params_.traditional.energy_detector.rgb_weight_r_2;
+    traditional_energy_params.rgb_weight_r_3 = params_.traditional.energy_detector.rgb_weight_r_3;
+    traditional_armor_params.number_classifier_thresh = params_.traditional.armor_detector.number_classifier_threshold;
+    traditional_armor_params.binary_threshold = params_.traditional.armor_detector.binary_thres;
+    traditional_armor_params.light_params.min_ratio = params_.traditional.armor_detector.light.min_ratio;
+    traditional_armor_params.light_params.max_ratio = params_.traditional.armor_detector.light.max_ratio;
+    traditional_armor_params.light_params.max_angle = params_.traditional.armor_detector.light.max_angle;
+    traditional_armor_params.armor_params.min_light_ratio = params_.traditional.armor_detector.armor.min_light_ratio;
+    traditional_armor_params.armor_params.min_small_center_distance = params_.traditional.armor_detector.armor.min_small_center_distance;
+    traditional_armor_params.armor_params.max_small_center_distance = params_.traditional.armor_detector.armor.max_small_center_distance;
+    traditional_armor_params.armor_params.min_large_center_distance = params_.traditional.armor_detector.armor.min_large_center_distance;
+    traditional_armor_params.armor_params.max_large_center_distance = params_.traditional.armor_detector.armor.max_large_center_distance;
+    traditional_armor_params.armor_params.max_angle = params_.traditional.armor_detector.armor.max_angle;
+    net_params.classifier_threshold = params_.net.classifier_thresh;
+    net_params.min_large_center_distance = params_.traditional.armor_detector.armor.min_large_center_distance;
+    net_params.net_params = BaseNetDetectorParams::NetParams{
+        ament_index_cpp::get_package_share_directory("net_detectors") + "/models/" + params_.net.model_name,
+        static_cast<int>(params_.net.input_width),
+        static_cast<int>(params_.net.input_height),
+        static_cast<int>(params_.net.num_class),
+        static_cast<int>(params_.net.num_color),
+        static_cast<float>(params_.net.nms_thresh),
+        static_cast<int>(params_.net.num_apex),
+        static_cast<int>(params_.net.pool_num)
+    };
+    net_detector_->set_params(&net_params);
     if (params_.autoaim_mode == 0) {
-        armor_detector_.reset();
-        if (params_.use_traditional) {
-            armor_detector_ = std::make_shared<TraditionalArmorDetector>(
-                TAParams{
-                    BaseArmorParams{
-                        static_cast<bool>(params_.is_blue),
-                        static_cast<bool>(params_.autoaim_mode),
-                        params_.debug,
-                        static_cast<bool>(params_.use_traditional),
-                    },
-                    static_cast<int>(params_.armor_detector.traditional.binary_thres),
-                    params_.armor_detector.traditional.number_classifier_threshold,
-                    TAParams::LightParams{
-                        params_.armor_detector.traditional.light.min_ratio,
-                        params_.armor_detector.traditional.light.max_ratio,
-                        params_.armor_detector.traditional.light.max_angle
-                    },
-                    TAParams::ArmorParams{
-                        params_.armor_detector.traditional.armor.min_light_ratio,
-                        params_.armor_detector.traditional.armor.min_small_center_distance,
-                        params_.armor_detector.traditional.armor.max_small_center_distance,
-                        params_.armor_detector.traditional.armor.min_large_center_distance,
-                        params_.armor_detector.traditional.armor.max_large_center_distance,
-                        params_.armor_detector.traditional.armor.max_angle,
-                    }
-                }
-            );
+        if (last_autoaim_mode_ != 0) {
+            traditional_detector_ = std::make_shared<TraditionalArmorDetector>(traditional_armor_params);
         } else {
-            armor_detector_ = std::make_shared<NetArmorDetector>(
-                NAParams{
-                    BaseArmorParams{
-                        static_cast<bool>(params_.is_blue),
-                        static_cast<bool>(params_.autoaim_mode),
-                        params_.debug,
-                        static_cast<bool>(params_.use_traditional),
-                    },
-                    static_cast<int>(params_.armor_detector.net.classifier_thresh),
-                }
-            );
+            traditional_detector_->set_params(&traditional_armor_params);
         }
-        armor_detector_->init();
     } else {
-        energy_detector_.reset();
-        if (params_.use_traditional) {
-            energy_detector_ = std::make_shared<TraditionalEnergyDetector>(
-                TEParams{
-                    BaseEnergyParam{
-                        static_cast<bool>(params_.is_blue),
-                        static_cast<bool>(params_.autoaim_mode),
-                        params_.debug,
-                        static_cast<bool>(params_.use_traditional),
-                    },
-                    static_cast<int>(params_.energy_detector.binary_thres),
-                    static_cast<int>(params_.energy_detector.energy_thresh),
-                    TEParams::RGBWeightParam{
-                        params_.energy_detector.rgb_weight_r_1,
-                        params_.energy_detector.rgb_weight_r_2,
-                        params_.energy_detector.rgb_weight_r_3,
-                        params_.energy_detector.rgb_weight_b_1,
-                        params_.energy_detector.rgb_weight_b_2,
-                        params_.energy_detector.rgb_weight_b_3,
-                    },
-                    params_.energy_detector.area_ratio
-                }
-            );
+        if (last_autoaim_mode_ != 1) {
+            traditional_detector_ = std::make_shared<TraditionalEnergyDetector>(traditional_energy_params);
         } else {
-            ///TODO: network energy detector
-
+            traditional_detector_->set_params(&traditional_energy_params);
         }
-        energy_detector_->init();
     }
 }
 

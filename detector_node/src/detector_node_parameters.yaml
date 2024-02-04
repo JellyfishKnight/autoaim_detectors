@@ -55,8 +55,8 @@ detector_node:
       default_value: 380,
       description: "energy armor width",
     }
-  armor_detector:
-    traditional:
+  traditional:
+    armor_detector:
       binary_thres: {
         type: double,
         default_value: 100,
@@ -114,55 +114,95 @@ detector_node:
             default_value: 35.0,
             description: "max angle of armor",
           }
-    net:
-      classifier_thresh: {
+    energy_detector:
+      binary_thres: {
         type: double,
-        default_value: 0.7,
-        description: "threshold of classifier",
+        default_value: 100,
+        description: "binary threshold",
       }
-  energy_detector:
-    binary_thres: {
-      type: double,
-      default_value: 100,
-      description: "binary threshold",
+      energy_thresh: {
+        type: double,
+        default_value: 100,
+        description: "energy threshold",
+      }
+      rgb_weight_r_1: {
+        type: double,
+        default_value: 0.5,
+        description: "rgb weight ratio",
+      }
+      rgb_weight_r_2: {
+        type: double,
+        default_value: 0.5,
+        description: "rgb weight ratio",
+      }
+      rgb_weight_r_3: {
+        type: double,
+        default_value: 0.5,
+        description: "rgb weight ratio",
+      }
+      rgb_weight_b_1: {
+        type: double,
+        default_value: 0.5,
+        description: "rgb weight ratio",
+      }
+      rgb_weight_b_2: {
+        type: double,
+        default_value: 0.5,
+        description: "rgb weight ratio",
+      }
+      rgb_weight_b_3: {
+        type: double,
+        default_value: 0.5,
+        description: "rgb weight ratio",
+      }
+      area_ratio: {
+        type: double,
+        default_value: 0.5,
+        description: "area ratio",
+      }
+  net:
+    model_name: {
+      type: string,
+      default_value: "yolov5s",
+      description: "model name",
     }
-    energy_thresh: {
+    classifier_thresh: {
       type: double,
-      default_value: 100,
-      description: "energy threshold",
+      default_value: 0.7,
+      description: "threshold of classifier",
     }
-    rgb_weight_r_1: {
-      type: double,
-      default_value: 0.5,
-      description: "rgb weight ratio",
+    input_width: {
+      type: int,
+      default_value: 416,
+      description: "input width of classifier",
     }
-    rgb_weight_r_2: {
-      type: double,
-      default_value: 0.5,
-      description: "rgb weight ratio",
+    input_height: {
+      type: int,
+      default_value: 416,
+      description: "input height of classifier",
     }
-    rgb_weight_r_3: {
-      type: double,
-      default_value: 0.5,
-      description: "rgb weight ratio",
+    num_class: {
+      type: int,
+      default_value: 9,
+      description: "number of class",
     }
-    rgb_weight_b_1: {
-      type: double,
-      default_value: 0.5,
-      description: "rgb weight ratio",
+    num_color: {
+      type: int,
+      default_value: 2,
+      description: "number of color",
     }
-    rgb_weight_b_2: {
+    nms_thresh: {
       type: double,
-      default_value: 0.5,
-      description: "rgb weight ratio",
+      default_value: 0.2,
+      description: "nms threshold",
     }
-    rgb_weight_b_3: {
-      type: double,
-      default_value: 0.5,
-      description: "rgb weight ratio",
+    num_apex: {
+      type: int,
+      default_value: 4,
+      description: "number of apex",
     }
-    area_ratio: {
-      type: double,
-      default_value: 0.5,
-      description: "area ratio",
+    pool_num: {
+      type: int,
+      default_value: 3,
+      description: "number of pool",
     }
