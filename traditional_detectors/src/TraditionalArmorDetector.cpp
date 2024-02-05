@@ -1,10 +1,21 @@
 #include "TraditionalArmorDetector.hpp"
+#include <ament_index_cpp/get_package_share_directory.hpp>
+#include <autoaim_utilities/NumberClassifier.hpp>
+#include <memory>
 #include <tuple>
 
 namespace helios_cv {
 
 TraditionalArmorDetector::TraditionalArmorDetector(const TraditionalArmorParams& params) {
     params_ = params;
+    auto model_path = ament_index_cpp::get_package_share_directory("traditional_detectors") + "/model/mlp.onnx";
+    auto label_path = ament_index_cpp::get_package_share_directory("traditional_detectors") + "/model/mlp.onnx";
+    number_classifier_ = std::make_shared<NumberClassifier>(
+        model_path,
+        label_path,
+        params_.number_classifier_thresh,
+        std::vector<std::string>{"negative"}
+    );
 }
 
 std::vector<Armor> TraditionalArmorDetector::detect_armors(const cv::Mat& image) {
