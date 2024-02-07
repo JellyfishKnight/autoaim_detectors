@@ -14,6 +14,7 @@
 #include <autoaim_utilities/NumberClassifier.hpp>
 
 #include <memory>
+#include <opencv2/core/mat.hpp>
 
 namespace helios_cv {
 
@@ -56,6 +57,8 @@ private:
     std::vector<Light> findLights(const cv::Mat & rbg_img, const cv::Mat & binary_img);
     
     std::vector<Armor> matchLights(const std::vector<Light> & lights);
+
+    void draw_results();
 
     bool isLight(const Light & possible_light);
     

@@ -9,8 +9,9 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <depend>armor_detectors</depend>
-  <depend>energy_detectors</depend>
+  <depend>net_detectors</depend>
+  <depend>traditional_detectors</depend>
+  <depend>detector_bring_up</depend>
   <depend>detector_node</depend>
 
   <test_depend>ament_lint_auto</test_depend>

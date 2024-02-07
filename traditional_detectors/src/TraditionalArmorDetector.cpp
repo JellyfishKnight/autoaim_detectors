@@ -2,6 +2,7 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <autoaim_utilities/NumberClassifier.hpp>
 #include <memory>
+#include <rclcpp/logging.hpp>
 #include <tuple>
 
 namespace helios_cv {
@@ -9,7 +10,7 @@ namespace helios_cv {
 TraditionalArmorDetector::TraditionalArmorDetector(const TraditionalArmorParams& params) {
     params_ = params;
     auto model_path = ament_index_cpp::get_package_share_directory("traditional_detectors") + "/model/mlp.onnx";
-    auto label_path = ament_index_cpp::get_package_share_directory("traditional_detectors") + "/model/mlp.onnx";
+    auto label_path = ament_index_cpp::get_package_share_directory("traditional_detectors") + "/model/label.txt";
     number_classifier_ = std::make_shared<NumberClassifier>(
         model_path,
         label_path,
@@ -31,6 +32,10 @@ std::vector<Armor> TraditionalArmorDetector::detect_armors(const cv::Mat& image)
     if (!armors_.empty()) {
         number_classifier_->extractNumbers(image, armors_);
         number_classifier_->classify(armors_);
+    }
+    // debug infos
+    if (params_.debug) {
+        draw_results();
     }
     return armors_;
 }
@@ -190,7 +195,6 @@ ArmorType TraditionalArmorDetector::isArmor(const Light & light_1, const Light &
     cv::Point2f diff = light_1.center - light_2.center;
     float angle = std::abs(std::atan(diff.y / diff.x)) / CV_PI * 180;
     bool angle_ok = angle < params_.armor_params.max_angle;
-
     bool is_armor = light_ratio_ok && center_distance_ok && angle_ok;
 
     // Judge armor type
@@ -202,7 +206,6 @@ ArmorType TraditionalArmorDetector::isArmor(const Light & light_1, const Light &
     } else {
         type = ArmorType::INVALID;
     }
-
     // if (!angle_ok && params_.debug) {
     //     RCLCPP_WARN(logger_, "now angle %f, thresh %f", angle, params_.armor_params.max_angle);
     // }
@@ -212,7 +215,6 @@ ArmorType TraditionalArmorDetector::isArmor(const Light & light_1, const Light &
     // if (!light_length_ratio && params_.debug) {
     //     RCLCPP_WARN(logger_, "now ratio %f, thresh %f", light_length_ratio, params_.armor_params.min_light_ratio);
     // }
-
     // Fill debug armors info
     autoaim_interfaces::msg::DebugArmor debug_armor;
     debug_armor.center_x = (light_1.center.x + light_2.center.x) / 2;
@@ -223,6 +225,42 @@ ArmorType TraditionalArmorDetector::isArmor(const Light & light_1, const Light &
     debug_armors_.data.emplace_back(debug_armor);
 
     return type;
+}
+
+void TraditionalArmorDetector::draw_results() {
+    // Draw Lights
+    for (const auto & light : lights_) {
+        cv::circle(result_img_, light.top, 3, cv::Scalar(255, 255, 255), 1);
+        cv::circle(result_img_, light.bottom, 3, cv::Scalar(255, 255, 255), 1);
+        auto line_color = light.color == RED ? cv::Scalar(255, 255, 0) : cv::Scalar(255, 0, 255);
+        cv::line(result_img_, light.top, light.bottom, line_color, 1);
+    }
+
+    // Draw armors
+    for (const auto & armor : armors_) {
+        if (armor.type != ArmorType::INVALID) {
+            cv::line(result_img_, armor.left_light.top, armor.right_light.bottom, cv::Scalar(0, 255, 0), 2);
+            cv::line(result_img_, armor.left_light.bottom, armor.right_light.top, cv::Scalar(0, 255, 0), 2);
+        }
+    }
+
+    // Show numbers and confidence
+    for (const auto & armor : armors_) {
+        if (armor.type != ArmorType::INVALID) {
+            cv::putText(
+            result_img_, armor.classfication_result, armor.left_light.top, cv::FONT_HERSHEY_SIMPLEX, 0.8,
+            cv::Scalar(0, 255, 255), 2);
+        }
+    }    
+    // Draw image center
+    cv::circle(result_img_, cam_center_, 5, cv::Scalar(255, 0, 0), 2);
+    // Draw latency
+    std::stringstream latency_ss;
+    // latency_ss << "Latency: " << std::fixed << std::setprecision(2) << latency_ << "ms";
+    auto latency_s = latency_ss.str();
+    cv::putText(
+        result_img_, latency_s, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 0), 2);
+    get_all_number_images();
 }
 
 void TraditionalArmorDetector::get_all_number_images() {

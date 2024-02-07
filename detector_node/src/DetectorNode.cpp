@@ -311,15 +311,18 @@ void DetectorNode::publish_debug_infos() {
         if (params_.autoaim_mode == 0) {
             auto binary_img = images.find("binary_img");
             if (binary_img != images.end()) {
-                binary_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), "mono8", *binary_img->second).toImageMsg());
+                binary_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::MONO8, 
+                                         *binary_img->second).toImageMsg());
             }
             auto result_img = images.find("result_img");
             if (result_img != images.end()) {
-                result_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", *result_img->second).toImageMsg());
+                result_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::RGB8,
+                                         *result_img->second).toImageMsg());
             }
             auto number_img = images.find("number_img");
             if (number_img != images.end()) {
-                number_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), "mono8", *number_img->second).toImageMsg());
+                number_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::MONO8,
+                                         *number_img->second).toImageMsg());
             }
             autoaim_interfaces::msg::DebugArmors debug_armors;
             autoaim_interfaces::msg::DebugLights debug_lights;
@@ -329,15 +332,18 @@ void DetectorNode::publish_debug_infos() {
         } else {
             auto binary_img = images.find("binary_img");
             if (binary_img != images.end()) {
-                binary_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), "mono8", *binary_img->second).toImageMsg());
+                binary_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::MONO8, 
+                                         *binary_img->second).toImageMsg());
             }
             auto result_img = images.find("detect_img");
             if (result_img != images.end()) {
-                result_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", *result_img->second).toImageMsg());
+                result_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::RGB8, 
+                                         *result_img->second).toImageMsg());
             }
             auto prepro_img = images.find("prepro_img");
             if (prepro_img != images.end()) {
-                number_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", *prepro_img->second).toImageMsg());
+                number_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::RGB8,
+                                         *prepro_img->second).toImageMsg());
             }
             autoaim_interfaces::msg::DebugArmors debug_armors;
             autoaim_interfaces::msg::DebugLights debug_lights;
@@ -349,7 +355,8 @@ void DetectorNode::publish_debug_infos() {
         auto images = net_detector_->get_debug_images();
         auto result_img = images.find("result_img");
         if (result_img != images.end()) {
-            result_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", *result_img->second).toImageMsg());
+            result_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::RGB8,
+                                     *result_img->second).toImageMsg());
         }
     }
 }
