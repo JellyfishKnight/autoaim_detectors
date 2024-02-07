@@ -1,10 +1,27 @@
 #include "NetDetectors.hpp"
 #include "BaseNetDetector.hpp"
+#include <autoaim_utilities/ThreadPool.hpp>
+#include <memory>
+#include <rclcpp/logging.hpp>
 
 namespace helios_cv {
 
 OVNetDetector::OVNetDetector(const BaseNetDetectorParams& params) {
     params_ = params;
+
+    thread_pool_ = std::make_shared<ThreadPool>(params_.net_params.POOL_NUM);
+
+    frames_ = 0;
+    detect_vector_.clear();
+    clear_queue(futs_);
+
+    infer1_ = new Inference(params_.net_params.MODEL_PATH, params_);
+    infer2_ = new Inference(params_.net_params.MODEL_PATH, params_);
+    infer3_ = new Inference(params_.net_params.MODEL_PATH, params_);
+
+    detect_vector_.emplace_back(infer1_);
+    detect_vector_.emplace_back(infer2_);
+    detect_vector_.emplace_back(infer3_);
 }
 
 OVNetDetector::~OVNetDetector() {
@@ -28,9 +45,6 @@ ArmorsStamped OVNetDetector::detect_armors(const ImageStamped& image_stamped) {
         futs_.front().wait();
         armors_stamped_ = std::move(futs_.front().get());
         futs_.pop();
-        // header.stamp = this->now();
-        // sensor_msgs::msg::Image::SharedPtr msg = cv_bridge::CvImage(header, "rgb8", detect_vector[frames % POOL_NUM]->img_).toImageMsg();
-        // armor_pub_->publish(*msg);
         detect_vector_[frames_ % params_.net_params.POOL_NUM]->img_ = image_stamped_;
         futs_.push(thread_pool_->submit(&Inference::detect, &(*detect_vector_[frames_++ % params_.net_params.POOL_NUM])));
         return armors_stamped_;
@@ -46,7 +60,7 @@ void OVNetDetector::set_params(void* params) {
 
 std::map<std::string, const cv::Mat*> OVNetDetector::get_debug_images() {
     std::map<std::string, const cv::Mat*> debug_images;
-    debug_images.emplace("result_img", &image_stamped_.image);
+    debug_images.emplace("result_img", &detect_vector_[frames_ % params_.net_params.POOL_NUM]->img_.image);
     return debug_images;
 }
 

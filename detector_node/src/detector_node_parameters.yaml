@@ -21,7 +21,7 @@ detector_node:
   }
   use_traditional: {
     type: int,
-    default_value: 1,
+    default_value: 0,
     description: "whether to use traditional method"
   }
   pnp_solver: 
@@ -163,7 +163,7 @@ detector_node:
   net:
     model_name: {
       type: string,
-      default_value: "yolov5s",
+      default_value: "2x3bone-9086.onnx",
       description: "model name",
     }
     classifier_thresh: {

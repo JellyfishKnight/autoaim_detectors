@@ -432,7 +432,6 @@ void BaseNetDetector::Inference::drawresult(ArmorsStamped result) {
             cv::line(img_.image, armor.left_light.bottom, armor.right_light.top, cv::Scalar(0, 255, 0), 2);
         }
     }
-
     // Show numbers and confidence
     for (const auto & armor : result.armors) {
         if (armor.type != ArmorType::INVALID) {

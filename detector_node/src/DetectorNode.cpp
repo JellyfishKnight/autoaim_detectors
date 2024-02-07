@@ -137,7 +137,7 @@ void DetectorNode::init_detectors() {
             params_.net.classifier_thresh,
             params_.traditional.armor_detector.armor.min_large_center_distance,
             BaseNetDetectorParams::NetParams{
-                ament_index_cpp::get_package_share_directory("net_detectors") + "/models/" + params_.net.model_name,
+                ament_index_cpp::get_package_share_directory("net_detectors") + "/model/" + params_.net.model_name,
                 static_cast<int>(params_.net.input_width),
                 static_cast<int>(params_.net.input_height),
                 static_cast<int>(params_.net.num_class),
