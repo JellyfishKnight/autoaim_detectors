@@ -11,6 +11,7 @@
 
 #include "DetectorNode.hpp"
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#include <autoaim_interfaces/msg/detail/armors__struct.hpp>
 #include <autoaim_interfaces/msg/detail/debug_armors__struct.hpp>
 #include <autoaim_interfaces/msg/detail/debug_lights__struct.hpp>
 #include <cmath>
@@ -280,6 +281,10 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
         RCLCPP_INFO(logger_, "Params updated");
         update_detector_params();
     }
+    if (!pnp_solver_) {
+        RCLCPP_WARN(logger_, "Camera info not received, skip");
+        return;
+    } 
     // convert image msg to cv::Mat
     cv_bridge::CvImagePtr cv_ptr;
     try {
@@ -297,8 +302,34 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
         armors_msg_.header.stamp = armors_stamped.stamp;
         armors = armors_stamped.armors;
     }
+    // solve pnp
+    for (auto armor : armors) {
+        cv::Mat rvec, tvec;
+        bool success = pnp_solver_->solvePnP(armor, rvec, tvec);
+        if (success) {
+            autoaim_interfaces::msg::Armor temp_armor;
+            temp_armor.type = static_cast<int>(armor.type);
+            temp_armor.number = armor.number;
+            temp_armor.pose.position.x = tvec.at<double>(0);
+            temp_armor.pose.position.y = tvec.at<double>(1);
+            temp_armor.pose.position.z = tvec.at<double>(2);
+            cv::Mat rotation_matrix;
+            cv::Rodrigues(rvec, rotation_matrix);
+            tf2::Matrix3x3 tf2_rotation_matrix(
+                rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
+                rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
+                rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
+                rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
+                rotation_matrix.at<double>(2, 2));
+            tf2::Quaternion tf2_q;
+            tf2_rotation_matrix.getRotation(tf2_q);
+            temp_armor.pose.orientation = tf2::toMsg(tf2_q);
+            temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
+            armors_msg_.armors.emplace_back(temp_armor);
+        }
+    }
     // publish
-    // armors_pub_->publish(armors);
+    armors_pub_->publish(armors_msg_);
     // debug info
     if (params_.debug) {
         publish_debug_infos();

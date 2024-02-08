@@ -72,7 +72,7 @@ ArmorsStamped BaseNetDetector::Inference::detect() {
         if (params_.autoaim_mode == 0) {
             armor_target.type = judge_armor_type(object);
         } else {
-            armor_target.type = ArmorType::ENERGY;
+            armor_target.type = ArmorType::ENERGY_TARGET;
         }
         armor_stamped.armors.emplace_back(armor_target);
     }
@@ -142,7 +142,7 @@ ArmorsStamped BaseNetDetector::Inference::thread_decode(const float* output) {
         if (params_.autoaim_mode == 0) {
             armor_target.type = judge_armor_type(object);
         } else {
-            armor_target.type = ArmorType::ENERGY;
+            armor_target.type = ArmorType::ENERGY_TARGET;
         }
 
         armor_stamped.armors.emplace_back(armor_target);
