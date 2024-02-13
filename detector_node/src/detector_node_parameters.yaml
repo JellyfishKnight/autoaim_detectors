@@ -24,37 +24,11 @@ detector_node:
     default_value: 0,
     description: "whether to use traditional method"
   }
-  pnp_solver: 
-    small_armor_height: {
-      type: double,
-      default_value: 55,
-      description: "small armor height",
-    }
-    small_armor_width: {
-      type: double,
-      default_value: 135,
-      description: "small armor height",
-    }
-    large_armor_height: {
-      type: double,
-      default_value: 55,
-      description: "large armor height",
-    }
-    large_armor_width: {
-      type: double,
-      default_value: 225,
-      description: "large armor width",
-    }
-    energy_armor_height: {
-      type: double,
-      default_value: 400,
-      description: "energy armor height",
-    }
-    energy_armor_width: {
-      type: double,
-      default_value: 380,
-      description: "energy armor width",
-    }
+  use_projection: {
+    type: bool,
+    default_value: true,
+    description: "whether to use projection"
+  }
   traditional:
     armor_detector:
       binary_thres: {
