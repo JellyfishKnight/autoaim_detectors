@@ -11,6 +11,7 @@
 #pragma once
 
 // ros
+#include <autoaim_utilities/PnPSolver.hpp>
 #include <cstdint>
 #include <memory>
 #include <net_detectors/BaseNetDetector.hpp>
@@ -94,6 +95,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_sub_;
     std::shared_ptr<sensor_msgs::msg::CameraInfo> cam_info_;
     std::shared_ptr<ArmorProjectYaw> armor_project_yaw_;
+    std::shared_ptr<EnergyProjectRoll> energy_project_roll_;
 
     // tf2 part
     // Subscriber with tf2 message_filter

@@ -11,6 +11,7 @@
 
 #include "DetectorNode.hpp"
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#include <autoaim_interfaces/msg/detail/armor__struct.hpp>
 #include <autoaim_interfaces/msg/detail/armors__struct.hpp>
 #include <autoaim_interfaces/msg/detail/debug_armors__struct.hpp>
 #include <autoaim_interfaces/msg/detail/debug_lights__struct.hpp>
@@ -71,7 +72,11 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
         "/camera_info", rclcpp::SensorDataQoS(),
         [this](sensor_msgs::msg::CameraInfo::SharedPtr camera_info) {
         cam_info_ = std::make_shared<sensor_msgs::msg::CameraInfo>(*camera_info);
-        armor_project_yaw_ = std::make_shared<ArmorProjectYaw>(cam_info_->k, camera_info->d);
+        if (params_.autoaim_mode == 0) {
+            armor_project_yaw_ = std::make_shared<ArmorProjectYaw>(cam_info_->k, camera_info->d);
+        } else {
+            energy_project_roll_ = std::make_shared<EnergyProjectRoll>(cam_info_->k, camera_info->d);
+        }
         net_detector_->set_cam_info(*camera_info);
         traditional_detector_->set_cam_info(*camera_info);
         cam_info_sub_.reset();
@@ -225,8 +230,8 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             ts_cam2odom.transform.rotation.z
         });
     for (const auto & armor : armors) {
-        cv::Mat rvec, tvec, rotation_matrix;
-        bool success = armor_project_yaw_->solve_pose(armor, rvec, tvec);
+        cv::Mat tvec, rotation_matrix;
+        bool success = armor_project_yaw_->solve_pose(armor, rotation_matrix, tvec);
         if (success) {
             // Fill basic info  
             temp_armor.type = static_cast<int>(armor.type);
@@ -236,11 +241,11 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
             temp_armor.pose.position.y = tvec.at<double>(1);
             temp_armor.pose.position.z = tvec.at<double>(2);
             tf2::Matrix3x3 tf2_rotation_matrix(
-            rvec.at<double>(0, 0), rvec.at<double>(0, 1),
-            rvec.at<double>(0, 2), rvec.at<double>(1, 0),
-            rvec.at<double>(1, 1), rvec.at<double>(1, 2),
-            rvec.at<double>(2, 0), rvec.at<double>(2, 1),
-            rvec.at<double>(2, 2));
+                rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
+                rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
+                rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
+                rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
+                rotation_matrix.at<double>(2, 2));
             tf2::Quaternion tf2_q;
             tf2_rotation_matrix.getRotation(tf2_q);
             temp_armor.pose.orientation = tf2::toMsg(tf2_q);
@@ -258,65 +263,62 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
 }
 
 void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr image_msg) {
-    // ///TODO: need improve : we should restruct the energy detector and predictor with a clear line
-    // if (param_listener_->is_old(params_)) {
-    //     params_ = param_listener_->get_params();
-    //     RCLCPP_INFO(logger_, "Params updated");
-    //     update_detector_params();
-    // }
-    // if (!pnp_solver_) {
-    //     RCLCPP_WARN(logger_, "Camera info not received, skip");
-    //     return;
-    // } 
-    // // convert image msg to cv::Mat
-    // cv_bridge::CvImagePtr cv_ptr;
-    // try {
-    //     cv_ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
-    // } catch (const cv_bridge::Exception &e) {
-    //     RCLCPP_ERROR(logger_, "cv_bridge exception: %s", e.what());
-    //     return;
-    // }
-    // std::vector<Armor> armors;
-    // armors_msg_.header = image_msg->header;
-    // if (params_.use_traditional) {
-    //     armors = traditional_detector_->detect_armors(cv_ptr->image);
-    // } else {
-    //     auto armors_stamped = net_detector_->detect_armors(ImageStamped{image_msg->header.stamp, cv_ptr->image});
-    //     armors_msg_.header.stamp = armors_stamped.stamp;
-    //     armors = armors_stamped.armors;
-    // }
-    // // solve pnp
-    // for (auto armor : armors) {
-    //     cv::Mat rvec, tvec;
-    //     bool success = pnp_solver_->solvePnP(armor, rvec, tvec);
-    //     if (success) {
-    //         autoaim_interfaces::msg::Armor temp_armor;
-    //         temp_armor.type = static_cast<int>(armor.type);
-    //         temp_armor.number = armor.number;
-    //         temp_armor.pose.position.x = tvec.at<double>(0);
-    //         temp_armor.pose.position.y = tvec.at<double>(1);
-    //         temp_armor.pose.position.z = tvec.at<double>(2);
-    //         cv::Mat rotation_matrix;
-    //         cv::Rodrigues(rvec, rotation_matrix);
-    //         tf2::Matrix3x3 tf2_rotation_matrix(
-    //             rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
-    //             rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
-    //             rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
-    //             rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
-    //             rotation_matrix.at<double>(2, 2));
-    //         tf2::Quaternion tf2_q;
-    //         tf2_rotation_matrix.getRotation(tf2_q);
-    //         temp_armor.pose.orientation = tf2::toMsg(tf2_q);
-    //         temp_armor.distance_to_image_center = pnp_solver_->calculateDistanceToCenter(armor.center);
-    //         armors_msg_.armors.emplace_back(temp_armor);
-    //     }
-    // }
-    // // publish
-    // armors_pub_->publish(armors_msg_);
-    // // debug info
-    // if (params_.debug) {
-    //     publish_debug_infos();
-    // }
+    ///TODO: need improve : we should restruct the energy detector and predictor with a clear line
+    if (param_listener_->is_old(params_)) {
+        params_ = param_listener_->get_params();
+        RCLCPP_INFO(logger_, "Params updated");
+        update_detector_params();
+    }
+    if (!energy_project_roll_) {
+        RCLCPP_WARN(logger_, "Camera info not received, skip");
+        return;
+    } 
+    // convert image msg to cv::Mat
+    cv_bridge::CvImagePtr cv_ptr;
+    try {
+        cv_ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
+    } catch (const cv_bridge::Exception &e) {
+        RCLCPP_ERROR(logger_, "cv_bridge exception: %s", e.what());
+        return;
+    }
+    std::vector<Armor> armors;
+    armors_msg_.header = image_msg->header;
+    if (params_.use_traditional) {
+        armors = traditional_detector_->detect_armors(cv_ptr->image);
+    } else {
+        auto armors_stamped = net_detector_->detect_armors(ImageStamped{image_msg->header.stamp, cv_ptr->image});
+        armors_msg_.header.stamp = armors_stamped.stamp;
+        armors = armors_stamped.armors;
+    }
+    // solve pnp
+    for (auto armor : armors) {
+        cv::Mat rotation_matrix, tvec;
+        if (energy_project_roll_->solve_pose(armor, rotation_matrix, tvec)) {
+            autoaim_interfaces::msg::Armor temp_armor;
+            temp_armor.type = static_cast<int>(armor.type);
+            temp_armor.number = armor.number;
+            temp_armor.pose.position.x = tvec.at<double>(0);
+            temp_armor.pose.position.y = tvec.at<double>(1);
+            temp_armor.pose.position.z = tvec.at<double>(2);
+            tf2::Matrix3x3 tf2_rotation_matrix(
+                rotation_matrix.at<double>(0, 0), rotation_matrix.at<double>(0, 1),
+                rotation_matrix.at<double>(0, 2), rotation_matrix.at<double>(1, 0),
+                rotation_matrix.at<double>(1, 1), rotation_matrix.at<double>(1, 2),
+                rotation_matrix.at<double>(2, 0), rotation_matrix.at<double>(2, 1),
+                rotation_matrix.at<double>(2, 2));
+            tf2::Quaternion tf2_q;
+            tf2_rotation_matrix.getRotation(tf2_q);
+            temp_armor.pose.orientation = tf2::toMsg(tf2_q);
+            temp_armor.distance_to_image_center = energy_project_roll_->calculateDistanceToCenter(armor.center);
+            armors_msg_.armors.emplace_back(temp_armor);
+        }
+    }
+    // publish
+    armors_pub_->publish(armors_msg_);
+    // debug info
+    if (params_.debug) {
+        publish_debug_infos();
+    }
 }
 
 void DetectorNode::publish_debug_infos() {
@@ -429,12 +431,16 @@ void DetectorNode::update_detector_params() {
     if (params_.autoaim_mode == 0) {
         if (last_autoaim_mode_ != 0) {
             traditional_detector_ = std::make_shared<TraditionalArmorDetector>(traditional_armor_params);
+            energy_project_roll_.reset();
+            armor_project_yaw_ = std::make_shared<ArmorProjectYaw>(cam_info_->k, cam_info_->d);
         } else {
             traditional_detector_->set_params(&traditional_armor_params);
         }
     } else {
         if (last_autoaim_mode_ != 1) {
             traditional_detector_ = std::make_shared<TraditionalEnergyDetector>(traditional_energy_params);
+            armor_project_yaw_.reset();
+            energy_project_roll_ = std::make_shared<EnergyProjectRoll>(cam_info_->k, cam_info_->d);
         } else {
             traditional_detector_->set_params(&traditional_energy_params);
         }
