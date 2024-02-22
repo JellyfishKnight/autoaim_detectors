@@ -372,8 +372,10 @@ void DetectorNode::publish_debug_infos() {
             }
             auto result_img = images.find("result_img");
             if (result_img != images.end()) {
+                auto image = result_img->second->clone();
+                armor_project_yaw_->draw_projection_points(image);
                 result_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::RGB8,
-                                         *result_img->second).toImageMsg());
+                                         image).toImageMsg());
             }
             auto number_img = images.find("number_img");
             if (number_img != images.end()) {
@@ -393,8 +395,10 @@ void DetectorNode::publish_debug_infos() {
             }
             auto result_img = images.find("detect_img");
             if (result_img != images.end()) {
+                auto image = result_img->second->clone();
+                energy_project_roll_->draw_projection_points(image);
                 result_img_pub_.publish(cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::RGB8, 
-                                         *result_img->second).toImageMsg());
+                                         image).toImageMsg());
             }
             auto prepro_img = images.find("prepro_img");
             if (prepro_img != images.end()) {

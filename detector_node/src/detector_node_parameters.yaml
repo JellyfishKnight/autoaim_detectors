@@ -96,42 +96,42 @@ detector_node:
       }
       energy_thresh: {
         type: double,
-        default_value: 100,
+        default_value: 120,
         description: "energy threshold",
       }
       rgb_weight_r_1: {
         type: double,
-        default_value: 0.5,
+        default_value: 1.0,
         description: "rgb weight ratio",
       }
       rgb_weight_r_2: {
         type: double,
-        default_value: 0.5,
+        default_value: 1.2,
         description: "rgb weight ratio",
       }
       rgb_weight_r_3: {
         type: double,
-        default_value: 0.5,
+        default_value: 0.7,
         description: "rgb weight ratio",
       }
       rgb_weight_b_1: {
         type: double,
-        default_value: 0.5,
+        default_value: 0.3,
         description: "rgb weight ratio",
       }
       rgb_weight_b_2: {
         type: double,
-        default_value: 0.5,
+        default_value: 1.2,
         description: "rgb weight ratio",
       }
       rgb_weight_b_3: {
         type: double,
-        default_value: 0.5,
+        default_value: 0.7,
         description: "rgb weight ratio",
       }
       area_ratio: {
         type: double,
-        default_value: 0.5,
+        default_value: 3.0,
         description: "area ratio",
       }
   net:

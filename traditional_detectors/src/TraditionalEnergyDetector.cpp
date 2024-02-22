@@ -20,12 +20,12 @@ TraditionalEnergyDetector::TraditionalEnergyDetector(const TraditionalEnergyPara
 
 std::vector<Armor> TraditionalEnergyDetector::detect_armors(const cv::Mat& image) {
     detect_img = image.clone();
-    cv::Mat img_thresh, img_roi;
+    cv::Mat img_roi;
     // binary threshold
     binary_img = preprocess(detect_img, params_.is_blue);
     find_target_ = false;
     // find fans
-    if (find_target_flow(img_thresh, contours) &&
+    if (find_target_flow(binary_img, contours) &&
         find_target_R(contours)) {
         find_target_ = true;
         setPoint(armor_fin, circle_center_point);
