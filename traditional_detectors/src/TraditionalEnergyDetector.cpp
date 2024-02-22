@@ -1,5 +1,6 @@
 #include "TraditionalEnergyDetector.hpp"
 #include <autoaim_utilities/Armor.hpp>
+#include <cmath>
 #include <map>
 #include <opencv2/core.hpp>
 #include <opencv2/core/matx.hpp>
@@ -37,10 +38,10 @@ std::vector<Armor> TraditionalEnergyDetector::detect_armors(const cv::Mat& image
     armors_.clear();
     if (find_target_) {
         Armor armor;
-        armor.left_light.top = pts[0];
-        armor.right_light.top = pts[1];
-        armor.right_light.bottom = pts[2];
-        armor.left_light.bottom = pts[3];
+        armor.left_light.top = pts[2];
+        armor.right_light.top = pts[3];
+        armor.right_light.bottom = pts[0];
+        armor.left_light.bottom = pts[1];
 
         armor.center = circle_center_point;
         armor.type = ArmorType::ENERGY_TARGET;
@@ -285,27 +286,15 @@ cv::Point2f TraditionalEnergyDetector::R_possible() {
 }
 
 void TraditionalEnergyDetector::getPts(cv::RotatedRect &armor_fin) {
-    float radian = atan2((armor_fin.center.y - circle_center_point.y), 
-                        (armor_fin.center.x - circle_center_point.x));
-    // 根据装甲板到R的角度重新设置装甲板旋转矩形的角度，
-    // 避免因为光照什么的因素使得抖动发生影响姿态解算
+    float radian = atan2((armor_fin.center.y-circle_center_point.y), (armor_fin.center.x-circle_center_point.x));
     armor_fin.angle = radian * 180/ M_PI;
-    cv::Point2f rectpoint[4];
-    armor_fin.points(rectpoint);
-    if (sqrt(pow(rectpoint[0].x - rectpoint[1].x, 2) + pow(rectpoint[0].y - rectpoint[1].y, 2)) > 
-        sqrt(pow(rectpoint[1].x - rectpoint[2].x, 2) + pow(rectpoint[1].y - rectpoint[2].y, 2))) {
-        //0-1为长边
-        pts[0]=rectpoint[0];
-        pts[1]=rectpoint[1];
-        pts[2]=rectpoint[2];
-        pts[3]=rectpoint[3];
-    }else{
-        //1-2为长边
-        pts[0]=rectpoint[1];
-        pts[1]=rectpoint[2];
-        pts[2]=rectpoint[3];
-        pts[3]=rectpoint[0];
-    }
+    cv::Point2f rect_point[4];
+    armor_fin.points(rect_point);
+
+    pts[0]=rect_point[0];
+    pts[1]=rect_point[1];
+    pts[2]=rect_point[2];
+    pts[3]=rect_point[3];
 }
 
 void TraditionalEnergyDetector::setPoint(cv::RotatedRect &armor_fin, cv::Point2f &circle_center_point) {
