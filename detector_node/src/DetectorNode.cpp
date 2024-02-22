@@ -65,18 +65,14 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
             this->create_publisher<autoaim_interfaces::msg::DebugArmors>("/detector/debug_armors", 10);
     }
     // create publishers and subscribers
-    // create publishers
     armors_pub_ = this->create_publisher<autoaim_interfaces::msg::Armors>("/detector/armors", 10);
     // create cam info subscriber
     cam_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
         "/camera_info", rclcpp::SensorDataQoS(),
         [this](sensor_msgs::msg::CameraInfo::SharedPtr camera_info) {
         cam_info_ = std::make_shared<sensor_msgs::msg::CameraInfo>(*camera_info);
-        if (params_.autoaim_mode == 0) {
-            armor_project_yaw_ = std::make_shared<ArmorProjectYaw>(cam_info_->k, camera_info->d);
-        } else {
-            energy_project_roll_ = std::make_shared<EnergyProjectRoll>(cam_info_->k, camera_info->d);
-        }
+        armor_project_yaw_ = std::make_shared<ArmorProjectYaw>(cam_info_->k, camera_info->d);
+        energy_project_roll_ = std::make_shared<EnergyProjectRoll>(cam_info_->k, camera_info->d);
         net_detector_->set_cam_info(*camera_info);
         traditional_detector_->set_cam_info(*camera_info);
         cam_info_sub_.reset();
@@ -147,30 +143,51 @@ void DetectorNode::init_detectors() {
             }
         }
     );
-    traditional_detector_ = std::make_shared<TraditionalArmorDetector>(
-        TraditionalArmorParams{
-            BaseTraditionalParams{
-                static_cast<bool>(params_.is_blue),
-                static_cast<bool>(params_.autoaim_mode),
-                params_.debug,
-                params_.traditional.armor_detector.binary_thres,
-            },
-            params_.traditional.armor_detector.number_classifier_threshold,
-            TraditionalArmorParams::LightParams{
-                params_.traditional.armor_detector.light.min_ratio,
-                params_.traditional.armor_detector.light.max_ratio,
-                params_.traditional.armor_detector.light.max_angle
-            },
-            TraditionalArmorParams::ArmorParams{
-                params_.traditional.armor_detector.armor.min_light_ratio,
-                params_.traditional.armor_detector.armor.min_small_center_distance,
-                params_.traditional.armor_detector.armor.max_small_center_distance,
-                params_.traditional.armor_detector.armor.min_large_center_distance,
-                params_.traditional.armor_detector.armor.max_large_center_distance,
-                params_.traditional.armor_detector.armor.max_angle
+    if (params_.autoaim_mode == 0) {
+        traditional_detector_ = std::make_shared<TraditionalArmorDetector>(
+            TraditionalArmorParams{
+                BaseTraditionalParams{
+                    static_cast<bool>(params_.is_blue),
+                    static_cast<bool>(params_.autoaim_mode),
+                    params_.debug,
+                    params_.traditional.armor_detector.binary_thres,
+                },
+                params_.traditional.armor_detector.number_classifier_threshold,
+                TraditionalArmorParams::LightParams{
+                    params_.traditional.armor_detector.light.min_ratio,
+                    params_.traditional.armor_detector.light.max_ratio,
+                    params_.traditional.armor_detector.light.max_angle
+                },
+                TraditionalArmorParams::ArmorParams{
+                    params_.traditional.armor_detector.armor.min_light_ratio,
+                    params_.traditional.armor_detector.armor.min_small_center_distance,
+                    params_.traditional.armor_detector.armor.max_small_center_distance,
+                    params_.traditional.armor_detector.armor.min_large_center_distance,
+                    params_.traditional.armor_detector.armor.max_large_center_distance,
+                    params_.traditional.armor_detector.armor.max_angle
+                }
             }
-        }
-    );
+        );
+    } else {
+        traditional_detector_ = std::make_shared<TraditionalEnergyDetector>(
+            TraditionalEnergyParams{
+                BaseTraditionalParams{
+                    static_cast<bool>(params_.is_blue),
+                    static_cast<bool>(params_.autoaim_mode),
+                    params_.debug,
+                    params_.traditional.energy_detector.binary_thres,
+                },
+                params_.traditional.energy_detector.energy_thresh,
+                params_.traditional.energy_detector.area_ratio,
+                params_.traditional.energy_detector.rgb_weight_b_1,
+                params_.traditional.energy_detector.rgb_weight_b_2,
+                params_.traditional.energy_detector.rgb_weight_b_3,
+                params_.traditional.energy_detector.rgb_weight_r_1,
+                params_.traditional.energy_detector.rgb_weight_r_2,
+                params_.traditional.energy_detector.rgb_weight_r_3
+            }
+        );
+    }
 }
 
 
@@ -263,7 +280,6 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
 }
 
 void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr image_msg) {
-    ///TODO: need improve : we should restruct the energy detector and predictor with a clear line
     if (param_listener_->is_old(params_)) {
         params_ = param_listener_->get_params();
         RCLCPP_INFO(logger_, "Params updated");
@@ -290,6 +306,30 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
         armors_msg_.header.stamp = armors_stamped.stamp;
         armors = armors_stamped.armors;
     }
+    geometry_msgs::msg::TransformStamped ts_odom2cam, ts_cam2odom;
+    try {
+        ts_odom2cam = tf2_buffer_->lookupTransform("camera_optical_frame", "odom", image_msg->header.stamp, 
+            rclcpp::Duration::from_seconds(0.01));
+        ts_cam2odom = tf2_buffer_->lookupTransform("odom", "camera_optical_frame", image_msg->header.stamp, 
+            rclcpp::Duration::from_seconds(0.01));
+    } catch (const tf2::TransformException & ex) {
+        RCLCPP_ERROR_ONCE(get_logger(), "Error while transforming %s", ex.what());
+        return;
+    }
+    // quaternion to rotation matrix
+    energy_project_roll_->update_transform_info(
+        cv::Quatd{
+            ts_odom2cam.transform.rotation.w,
+            ts_odom2cam.transform.rotation.x,
+            ts_odom2cam.transform.rotation.y,
+            ts_odom2cam.transform.rotation.z
+        },
+        cv::Quatd{
+            ts_cam2odom.transform.rotation.w,
+            ts_cam2odom.transform.rotation.x,
+            ts_cam2odom.transform.rotation.y,
+            ts_cam2odom.transform.rotation.z
+    });
     // solve pnp
     for (auto armor : armors) {
         cv::Mat rotation_matrix, tvec;

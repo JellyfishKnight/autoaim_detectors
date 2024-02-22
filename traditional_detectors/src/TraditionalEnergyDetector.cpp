@@ -4,6 +4,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/core/matx.hpp>
 #include <opencv2/core/types.hpp>
+#include <rclcpp/logging.hpp>
 #include <string>
 
 namespace helios_cv {
@@ -33,16 +34,19 @@ std::vector<Armor> TraditionalEnergyDetector::detect_armors(const cv::Mat& image
     // caculate roi area
     rectangle(image, rect_roi, cv::Scalar(255, 255, 255), 2);    
     // return energy armor
-    Armor armor;
-    armor.left_light.top = pts[0];
-    armor.right_light.top = pts[1];
-    armor.right_light.bottom = pts[2];
-    armor.left_light.bottom = pts[3];
+    armors_.clear();
+    if (find_target_) {
+        Armor armor;
+        armor.left_light.top = pts[0];
+        armor.right_light.top = pts[1];
+        armor.right_light.bottom = pts[2];
+        armor.left_light.bottom = pts[3];
 
-    armor.center = circle_center_point;
-    armor.type = ArmorType::ENERGY_TARGET;
-    armor.classfication_result = "energy_target";
-    armors_.emplace_back(armor);
+        armor.center = circle_center_point;
+        armor.type = ArmorType::ENERGY_TARGET;
+        armor.classfication_result = "energy_target";
+        armors_.emplace_back(armor);
+    }
     // draw debug infos
     if (params_.debug) {
         draw_results(detect_img);
