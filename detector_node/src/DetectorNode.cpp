@@ -306,6 +306,7 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
         armors_msg_.header.stamp = armors_stamped.stamp;
         armors = armors_stamped.armors;
     }
+    armors_msg_.armors.clear();
     geometry_msgs::msg::TransformStamped ts_odom2cam, ts_cam2odom;
     try {
         ts_odom2cam = tf2_buffer_->lookupTransform("camera_optical_frame", "odom", image_msg->header.stamp, 
