@@ -56,6 +56,18 @@ ArmorsStamped OVNetDetector::detect_armors(const ImageStamped& image_stamped) {
 
 void OVNetDetector::set_params(void* params) {
     params_ = *static_cast<BaseNetDetectorParams*>(params);
+    thread_pool_ = std::make_shared<ThreadPool>(params_.net_params.POOL_NUM);
+    frames_ = 0;
+    detect_vector_.clear();
+    clear_queue(futs_);
+
+    infer1_ = new Inference(params_.net_params.MODEL_PATH, params_);
+    infer2_ = new Inference(params_.net_params.MODEL_PATH, params_);
+    infer3_ = new Inference(params_.net_params.MODEL_PATH, params_);
+
+    detect_vector_.emplace_back(infer1_);
+    detect_vector_.emplace_back(infer2_);
+    detect_vector_.emplace_back(infer3_);
 }
 
 std::map<std::string, const cv::Mat*> OVNetDetector::get_debug_images() {

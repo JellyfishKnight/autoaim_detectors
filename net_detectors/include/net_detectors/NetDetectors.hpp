@@ -16,6 +16,7 @@
 
 namespace helios_cv {
 
+#ifdef __x86_64__
 class OVNetDetector : public BaseNetDetector {
 public:
     OVNetDetector(const BaseNetDetectorParams& params);
@@ -46,5 +47,11 @@ private:
 
     rclcpp::Logger logger_ = rclcpp::get_logger("OVNetDetector");
 };
+
+#elif  __aarch64__
+
+#endif
+
+
 
 } // namespace helios_cv

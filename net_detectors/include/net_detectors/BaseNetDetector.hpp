@@ -65,16 +65,12 @@ typedef struct BaseNetDetectorParams {
     typedef struct NetParams {
         NetParams(
             const std::string& model_path,
-            int input_w,
-            int input_h,
             int num_class,
             int num_colors,
             float nms_thresh,
             int num_apex,
             int pool_num
         ) : MODEL_PATH(model_path),
-            INPUT_W(input_w),
-            INPUT_H(input_h),
             NUM_CLASS(num_class),
             NUM_COLORS(num_colors),
             NMS_THRESH(nms_thresh),
@@ -82,8 +78,6 @@ typedef struct BaseNetDetectorParams {
             POOL_NUM(pool_num) {}
         NetParams() = default;
         std::string MODEL_PATH;
-        int INPUT_W;//输入图片的宽 416
-        int INPUT_H;//输入图片的高 416
         int NUM_CLASS;//类别总数 9
         int NUM_COLORS;//颜色 2
         float NMS_THRESH;//NMS阈值 0.2
@@ -102,25 +96,6 @@ typedef struct ImageStamped {
     rclcpp::Time stamp;
     cv::Mat image;
 }ImageStamped;
-
-class BaseNetDetector {
-public:
-    virtual ArmorsStamped detect_armors(const ImageStamped& image_stamped) = 0;
-
-    virtual void set_params(void* params) = 0;
-
-    virtual void set_cam_info(const sensor_msgs::msg::CameraInfo& cam_info) {
-        cam_info_ = cam_info;
-        cam_center_ = cv::Point2f(cam_info_.width / 2.0, cam_info_.height / 2.0);
-    };
-
-    virtual std::map<std::string, const cv::Mat*> get_debug_images() = 0;
-
-protected:
-    // Make constructor protected to avoid create a instance of BaseNetDetector
-    BaseNetDetector() = default;
-
-    ~BaseNetDetector() = default;
 
 #ifdef __x86_64__
     class Inference{
@@ -147,6 +122,8 @@ protected:
         };
 
     private:
+        int INPUT_W;
+        int INPUT_H;
         BaseNetDetectorParams params_;
         float* thread_pre(cv::Mat &src);
 
@@ -187,11 +164,31 @@ protected:
 
 #endif
 
+
+class BaseNetDetector {
+public:
+    virtual ArmorsStamped detect_armors(const ImageStamped& image_stamped) = 0;
+
+    virtual void set_params(void* params) = 0;
+
+    virtual void set_cam_info(const sensor_msgs::msg::CameraInfo& cam_info) {
+        cam_info_ = cam_info;
+        cam_center_ = cv::Point2f(cam_info_.width / 2.0, cam_info_.height / 2.0);
+    };
+
+    virtual std::map<std::string, const cv::Mat*> get_debug_images() = 0;
+
+protected:
+    // Make constructor protected to avoid create a instance of BaseNetDetector
+    BaseNetDetector() = default;
+
+    ~BaseNetDetector() = default;
+
+
     sensor_msgs::msg::CameraInfo cam_info_;
     cv::Point2f cam_center_;
 
     std::shared_ptr<ThreadPool> thread_pool_;
-
 };
 
 

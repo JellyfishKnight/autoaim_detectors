@@ -5,7 +5,7 @@
 namespace helios_cv {
 
 #ifdef __x86_64__
-BaseNetDetector::Inference::Inference(std::string model_path, const BaseNetDetectorParams& params) {
+Inference::Inference(std::string model_path, const BaseNetDetectorParams& params) {
     /*--------------openvino各个模块进行初始化---------*/
     core_.set_property(ov::cache_dir("cache"));
     std::shared_ptr<ov::Model> model = core_.read_model(model_path);
@@ -19,11 +19,13 @@ BaseNetDetector::Inference::Inference(std::string model_path, const BaseNetDetec
     infer_request_ = complied_model_.create_infer_request();
     input_node_ = infer_request_.get_input_tensor();
     tensor_shape_ = input_node_.get_shape();
+    INPUT_H = tensor_shape_[1];
+    INPUT_W = tensor_shape_[2];
     input_port_ = complied_model_.input();
     params_ = params;
 }
 
-ArmorsStamped BaseNetDetector::Inference::detect() {
+ArmorsStamped Inference::detect() {
     ArmorsStamped armor_stamped;
     armor_stamped.stamp = img_.stamp;
     //对图像进行处理，使其变成可以传给模型的数据类型
@@ -81,7 +83,7 @@ ArmorsStamped BaseNetDetector::Inference::detect() {
     return armor_stamped;
 }
 
-ArmorsStamped BaseNetDetector::Inference::async_detect() {
+ArmorsStamped Inference::async_detect() {
     cv::cvtColor(img_.image, img_.image, cv::COLOR_BGR2RGB);
 
     std::future<float*> result_input_data = std::async(std::launch::async, &Inference::thread_pre, this, std::ref(img_.image));
@@ -94,13 +96,13 @@ ArmorsStamped BaseNetDetector::Inference::async_detect() {
 
 }
 
-float* BaseNetDetector::Inference::thread_pre(cv::Mat &src) {
+float* Inference::thread_pre(cv::Mat &src) {
     cv::Mat pre_img = static_resize(src);
     pre_img.convertTo(pre_img, CV_32FC3);
     return reinterpret_cast<float*>(pre_img.data);
 }
 
-const float* BaseNetDetector::Inference::thread_infer(float *input_data) {
+const float* Inference::thread_infer(float *input_data) {
     ov::Tensor input_tensor = ov::Tensor(complied_model_.input().get_element_type(), complied_model_.input().get_shape(), input_data);
     infer_request_.set_input_tensor(input_tensor);
 
@@ -112,7 +114,7 @@ const float* BaseNetDetector::Inference::thread_infer(float *input_data) {
     return output_buffer;
 }
 
-ArmorsStamped BaseNetDetector::Inference::thread_decode(const float* output) {
+ArmorsStamped Inference::thread_decode(const float* output) {
     ArmorsStamped armor_stamped;
     armor_stamped.stamp = img_.stamp;
     std::vector<Object> objects;
@@ -154,7 +156,7 @@ ArmorsStamped BaseNetDetector::Inference::thread_decode(const float* output) {
 /**
  * @brief 获取某一段内最大值所在位置
 */
-int BaseNetDetector::Inference::argmax(const float* ptr, int len) {
+int Inference::argmax(const float* ptr, int len) {
     int arg_max = 0;
     for (int i = 1; i < len; i++) {
         if (ptr[i] > ptr[arg_max]) {
@@ -164,16 +166,16 @@ int BaseNetDetector::Inference::argmax(const float* ptr, int len) {
     return arg_max;
 }
 
-cv::Mat BaseNetDetector::Inference::static_resize(cv::Mat src) {
+cv::Mat Inference::static_resize(cv::Mat src) {
     //求出模型的输入大小（416*416）相对于原图长边的比值
-    scale_ = std::min(params_.net_params.INPUT_W / (src.cols * 1.0), 
-                        params_.net_params.INPUT_H / (src.rows * 1.0));
+    scale_ = std::min(INPUT_W / (src.cols * 1.0), 
+                        INPUT_H / (src.rows * 1.0));
 
     int unpad_w = scale_*src.cols;
     int unpad_h = scale_*src.rows;
 
-    dw_ = (params_.net_params.INPUT_W - unpad_w) / 2;
-    dh_ = (params_.net_params.INPUT_H - unpad_h) / 2;
+    dw_ = (INPUT_W - unpad_w) / 2;
+    dh_ = (INPUT_H - unpad_h) / 2;
 
     cv::Mat re(unpad_h, unpad_w, CV_8UC3);
     cv::resize(src, re, re.size());
@@ -184,7 +186,7 @@ cv::Mat BaseNetDetector::Inference::static_resize(cv::Mat src) {
     return out;
 }
 
-void BaseNetDetector::Inference::generate_grids_and_stride(const int w, const int h, const int strides[], std::vector<GridAndStride> &grid_strides) {
+void Inference::generate_grids_and_stride(const int w, const int h, const int strides[], std::vector<GridAndStride> &grid_strides) {
     for(int i=0; i<3; i++){
         int num_grid_w = w/strides[i];
         int num_grid_h = h/strides[i];
@@ -196,7 +198,7 @@ void BaseNetDetector::Inference::generate_grids_and_stride(const int w, const in
     }
 }
 
-void BaseNetDetector::Inference::generate_yolox_proposal(std::vector<GridAndStride> &grid_strides, const float * output_buffer, float prob_threshold, std::vector<Object>& objects, float scale) {
+void Inference::generate_yolox_proposal(std::vector<GridAndStride> &grid_strides, const float * output_buffer, float prob_threshold, std::vector<Object>& objects, float scale) {
     const int num_anchors = grid_strides.size();
 
     for(int anchor_idx = 0; anchor_idx<num_anchors; anchor_idx++){
@@ -261,14 +263,14 @@ void BaseNetDetector::Inference::generate_yolox_proposal(std::vector<GridAndStri
 /**
  * @brief 对置信度递归进行一个快速排序
 */
-void BaseNetDetector::Inference::qsort_descent_inplace(std::vector<Object>& objects) {
+void Inference::qsort_descent_inplace(std::vector<Object>& objects) {
     if(objects.empty()){
         return;
     }
     qsort_descent_inplace(objects, 0, objects.size()-1);
 }
 
-void BaseNetDetector::Inference::qsort_descent_inplace(std::vector<Object> & faceobjects, int left, int right) {
+void Inference::qsort_descent_inplace(std::vector<Object> & faceobjects, int left, int right) {
     int i = left;
     int j = right;
 
@@ -310,7 +312,7 @@ void BaseNetDetector::Inference::qsort_descent_inplace(std::vector<Object> & fac
  * @param picked 非极大抑制后输出的索引就存放在这里
  * @param nms_threshold 非极大抑制阈值
 */
-void BaseNetDetector::Inference::nms_sorted_bboxes(std::vector<Object> & faceobjects, std::vector<int>& picked, float nms_threshold) {
+void Inference::nms_sorted_bboxes(std::vector<Object> & faceobjects, std::vector<int>& picked, float nms_threshold) {
     picked.clear();
     const int n = faceobjects.size();
     std::vector<float> areas(n);
@@ -377,12 +379,12 @@ void BaseNetDetector::Inference::nms_sorted_bboxes(std::vector<Object> & faceobj
  * @param scale 输入图片对于原图片的缩放比例
  * 
 */
-void BaseNetDetector::Inference::decode(const float* output_buffer, std::vector<Object>& objects, float scale) {
+void Inference::decode(const float* output_buffer, std::vector<Object>& objects, float scale) {
     std::vector<Object>proposals;
     const int strides[3]={8, 16, 32};//步长
     std::vector<GridAndStride> grid_strides;
 
-    generate_grids_and_stride(params_.net_params.INPUT_W, params_.net_params.INPUT_H, strides, grid_strides);
+    generate_grids_and_stride(INPUT_W, INPUT_H, strides, grid_strides);
     generate_yolox_proposal(grid_strides, output_buffer, 0.5, proposals, scale);
     qsort_descent_inplace(proposals);
     if(proposals.size()>=128){
@@ -421,7 +423,7 @@ void BaseNetDetector::Inference::decode(const float* output_buffer, std::vector<
     }
 }
 
-void BaseNetDetector::Inference::drawresult(ArmorsStamped result) {
+void Inference::drawresult(ArmorsStamped result) {
     if (result.armors.empty()) {
         return;
     }
@@ -444,12 +446,12 @@ void BaseNetDetector::Inference::drawresult(ArmorsStamped result) {
 
 }
 
-float BaseNetDetector::Inference::intersaction_area(const Object& a, const Object& b) {
+float Inference::intersaction_area(const Object& a, const Object& b) {
     cv::Rect_<float> inter = a.rect & b.rect;
     return inter.area();
 }
 
-ArmorType BaseNetDetector::Inference::judge_armor_type(const Object& object) {
+ArmorType Inference::judge_armor_type(const Object& object) {
     cv::Point2f light_center1, light_center2, armor_center;
     double light_length1, light_length2;
     light_center1 = (object.apexes[0] + object.apexes[1]) / 2;

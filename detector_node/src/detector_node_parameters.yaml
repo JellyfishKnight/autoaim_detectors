@@ -145,16 +145,6 @@ detector_node:
       default_value: 0.7,
       description: "threshold of classifier",
     }
-    input_width: {
-      type: int,
-      default_value: 416,
-      description: "input width of classifier",
-    }
-    input_height: {
-      type: int,
-      default_value: 416,
-      description: "input height of classifier",
-    }
     num_class: {
       type: int,
       default_value: 9,

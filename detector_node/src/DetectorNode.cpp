@@ -133,8 +133,6 @@ void DetectorNode::init_detectors() {
             params_.traditional.armor_detector.armor.min_large_center_distance,
             BaseNetDetectorParams::NetParams{
                 ament_index_cpp::get_package_share_directory("net_detectors") + "/model/" + params_.net.model_name,
-                static_cast<int>(params_.net.input_width),
-                static_cast<int>(params_.net.input_height),
                 static_cast<int>(params_.net.num_class),
                 static_cast<int>(params_.net.num_color),
                 static_cast<float>(params_.net.nms_thresh),
@@ -464,8 +462,6 @@ void DetectorNode::update_detector_params() {
     net_params.min_large_center_distance = params_.traditional.armor_detector.armor.min_large_center_distance;
     net_params.net_params = BaseNetDetectorParams::NetParams{
         ament_index_cpp::get_package_share_directory("net_detectors") + "/models/" + params_.net.model_name,
-        static_cast<int>(params_.net.input_width),
-        static_cast<int>(params_.net.input_height),
         static_cast<int>(params_.net.num_class),
         static_cast<int>(params_.net.num_color),
         static_cast<float>(params_.net.nms_thresh),
