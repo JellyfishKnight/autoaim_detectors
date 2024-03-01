@@ -211,6 +211,9 @@ void DetectorNode::armor_image_callback(sensor_msgs::msg::Image::SharedPtr image
         armors = traditional_detector_->detect_armors(image_);
     } else {
         auto armors_stamped = net_detector_->detect_armors(ImageStamped{image_msg->header.stamp, image_});
+        if (armors_stamped.stamp.seconds() < 1e-4) {
+            return ;
+        }
         armors = armors_stamped.armors;
         armors_msg_.header.stamp = armors_stamped.stamp;
     }
@@ -470,7 +473,7 @@ void DetectorNode::update_detector_params() {
     net_params.classifier_threshold = params_.net.classifier_thresh;
     net_params.min_large_center_distance = params_.traditional.armor_detector.armor.min_large_center_distance;
     net_params.net_params = BaseNetDetectorParams::NetParams{
-        ament_index_cpp::get_package_share_directory("net_detectors") + "/models/" + params_.net.model_name,
+        ament_index_cpp::get_package_share_directory("net_detectors") + "/model/" + params_.net.model_name,
         static_cast<int>(params_.net.num_class),
         static_cast<int>(params_.net.num_color),
         static_cast<float>(params_.net.nms_thresh),

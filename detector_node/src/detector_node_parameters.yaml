@@ -6,7 +6,7 @@ detector_node:
   }
   is_blue: {
     type: int,
-    default_value: 0,
+    default_value: 1,
     description: "whether the armor is blue"
   }
   autoaim_mode: {
@@ -21,7 +21,7 @@ detector_node:
   }
   use_traditional: {
     type: int,
-    default_value: 1,
+    default_value: 0,
     description: "whether to use traditional method"
   }
   use_projection: {

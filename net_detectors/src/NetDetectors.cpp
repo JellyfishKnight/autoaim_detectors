@@ -34,6 +34,7 @@ OVNetDetector::~OVNetDetector() {
 
 ArmorsStamped OVNetDetector::detect_armors(const ImageStamped& image_stamped) {
     armors_stamped_.armors.clear();
+    armors_stamped_.stamp = image_stamped.stamp;
     image_stamped_ = image_stamped;
     if (image_stamped_.image.empty()) {
         return armors_stamped_;

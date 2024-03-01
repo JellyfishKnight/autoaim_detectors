@@ -1,6 +1,7 @@
 #include "BaseNetDetector.hpp"
 #include <autoaim_utilities/Armor.hpp>
 #include <opencv2/core/hal/interface.h>
+#include <opencv2/imgproc.hpp>
 
 namespace helios_cv {
 
@@ -140,7 +141,6 @@ ArmorsStamped Inference::thread_decode(const float* output) {
         armor_target.left_light.bottom = std::move(object.apexes[1]);
         armor_target.right_light.bottom = std::move(object.apexes[2]);
         armor_target.right_light.top = std::move(object.apexes[3]);
-
         if (params_.autoaim_mode == 0) {
             armor_target.type = judge_armor_type(object);
         } else {
@@ -438,10 +438,18 @@ void Inference::drawresult(ArmorsStamped result) {
     for (const auto & armor : result.armors) {
         if (armor.type != ArmorType::INVALID) {
             cv::putText(
-            img_.image, armor.classfication_result, armor.left_light.top, cv::FONT_HERSHEY_SIMPLEX, 0.8,
+            img_.image, armor.number, armor.left_light.top, cv::FONT_HERSHEY_SIMPLEX, 0.8,
             cv::Scalar(0, 255, 255), 2);
         }
     }    
+    // Circle sequence
+    int i = 1;
+    for (const auto& armor : result.armors) {
+        cv::circle(img_.image, armor.left_light.bottom, 10, cv::Scalar(0, 255, 0));
+        cv::circle(img_.image, armor.left_light.top, 20, cv::Scalar(0, 255, 0));
+        cv::circle(img_.image, armor.right_light.top, 30, cv::Scalar(0, 255, 0));
+        cv::circle(img_.image, armor.right_light.bottom, 40, cv::Scalar(0, 255, 0));
+    }
     return;
 
 }
