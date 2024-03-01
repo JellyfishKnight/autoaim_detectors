@@ -290,7 +290,7 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
     // convert image msg to cv::Mat
     cv_bridge::CvImagePtr cv_ptr;
     try {
-        cv_ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
+        cv_ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::RGB8);
     } catch (const cv_bridge::Exception &e) {
         RCLCPP_ERROR(logger_, "cv_bridge exception: %s", e.what());
         return;
@@ -311,10 +311,19 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
             rclcpp::Duration::from_seconds(0.01));
         ts_cam2odom = tf2_buffer_->lookupTransform("odom", "camera_optical_frame", image_msg->header.stamp, 
             rclcpp::Duration::from_seconds(0.01));
+        auto odom2camlink = tf2_buffer_->lookupTransform("gimbal_link", "odom", image_msg->header.stamp, 
+            rclcpp::Duration::from_seconds(0.01));
+        tf2::Quaternion q(odom2camlink.transform.rotation.x,odom2camlink.transform.rotation.y, 
+                            odom2camlink.transform.rotation.z, odom2camlink.transform.rotation.w);
+        tf2::Matrix3x3 m(q);
+        double roll, pitch, yaw;
+        m.getRPY(roll, pitch, yaw);
+        energy_project_roll_->yaw_ = -yaw; 
     } catch (const tf2::TransformException & ex) {
         RCLCPP_ERROR_ONCE(get_logger(), "Error while transforming %s", ex.what());
         return;
     }
+    RCLCPP_WARN(logger_, "yaw %f", energy_project_roll_->yaw_ / M_PI * 180.0);
     // quaternion to rotation matrix
     energy_project_roll_->update_transform_info(
         cv::Quatd{
