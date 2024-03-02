@@ -1,6 +1,8 @@
 #include "BaseNetDetector.hpp"
 #include <autoaim_utilities/Armor.hpp>
+#include <memory>
 #include <opencv2/core/hal/interface.h>
+#include <opencv2/core/types.hpp>
 #include <opencv2/imgproc.hpp>
 
 namespace helios_cv {
@@ -49,6 +51,37 @@ ArmorsStamped Inference::detect() {
     //对推理结果进行解码
     decode(output_buffer, objects, scale_);
 
+    std::shared_ptr<cv::Point2f> R_center;
+    if (params_.autoaim_mode != 0) {
+        // find R
+        for (auto it = objects.begin(); it != objects.end(); it++) {
+            if (it->label == 2) {
+                R_center = std::make_shared<cv::Point2f>((it->apexes[0] + it->apexes[1] + it->apexes[2] + it->apexes[3]) / 4);
+                objects.erase(it);
+                break;
+            }
+        }
+    }
+    // if not find R
+    if (!R_center) {
+        if (objects.size() >= 3) {
+            // find the center of the three points
+            cv::Point2f A = (objects[0].apexes[0] + objects[0].apexes[1] + objects[0].apexes[2] + objects[0].apexes[3]) / 4;
+            cv::Point2f B = (objects[1].apexes[0] + objects[1].apexes[1] + objects[1].apexes[2] + objects[1].apexes[3]) / 4;
+            cv::Point2f C = (objects[2].apexes[0] + objects[2].apexes[1] + objects[2].apexes[2] + objects[2].apexes[3]) / 4;
+            float k_ab = (B.y - A.y) / (B.x - A.x);
+            float k_bc = (C.y - B.y) / (C.x - B.x);
+            float k_ac = (A.y-C.y) / (A.x-C.x);
+            cv::Mat mat_right = (cv::Mat_<float>(2, 2) << 1, 1/k_ab, 1, 1/k_bc);
+            cv::Mat mat_left = (cv::Mat_<float>(2, 1) << (A.y+B.y)/2 + 1/k_ab * (A.x+B.x)/2, (B.y+C.y)/2 + 1/k_bc * (B.x+C.x)/2);
+            cv::Mat result = mat_right.inv() * mat_left;
+            R_center = std::make_shared<cv::Point2f>(result.at<float>(1,0), result.at<float>(0,0));
+        }
+    }
+    // if can't find R, just return empty
+    if (!R_center) {
+        return armor_stamped;
+    }
     //设置返回结果
     for(auto &object : objects){
         if (object.conf < params_.classifier_threshold) {
@@ -57,26 +90,24 @@ ArmorsStamped Inference::detect() {
         if (object.color == params_.is_blue) {
             continue;
         }
+        // 
         Armor armor_target;
         armor_target.confidence = object.conf;
-        if (params_.autoaim_mode == 0) {
-            armor_target.number = ARMOR_NUMBER_LABEL[object.label];
-        } else {
-            armor_target.number = ENERGY_NUMBER_LABEL[object.label];
-        }
-        armor_target.left_light.top = object.apexes[0];
-        armor_target.left_light.bottom = object.apexes[1];
-        armor_target.right_light.bottom = object.apexes[2];
         if (params_.autoaim_mode != 0) {
-            armor_target.right_light.top = object.apexes[4];
-            armor_target.center = object.apexes[3];
-        } else {
-            armor_target.right_light.top = object.apexes[3];
-        }
-        if (params_.autoaim_mode == 0) {
-            armor_target.type = judge_armor_type(object);
-        } else {
+            armor_target.number = ENERGY_NUMBER_LABEL[object.label];
+            armor_target.left_light.bottom = object.apexes[3];
+            armor_target.left_light.top = object.apexes[0];
+            armor_target.right_light.top = object.apexes[1];
+            armor_target.right_light.bottom = object.apexes[2];
+            armor_target.center = *R_center;
             armor_target.type = ArmorType::ENERGY_TARGET;
+        } else {
+            armor_target.number = ARMOR_NUMBER_LABEL[object.label];
+            armor_target.left_light.bottom = object.apexes[1];
+            armor_target.left_light.top = object.apexes[0];
+            armor_target.right_light.top = object.apexes[3];
+            armor_target.right_light.bottom = object.apexes[2];
+            armor_target.type = judge_armor_type(object);
         }
         armor_stamped.armors.emplace_back(armor_target);
     }
@@ -485,13 +516,13 @@ void Inference::drawresult(ArmorsStamped result) {
         }
     }    
     // Circle sequence
-    // int i = 1;
-    // for (const auto& armor : result.armors) {
-    //     cv::circle(img_.image, armor.left_light.bottom, 10, cv::Scalar(0, 255, 0));
-    //     cv::circle(img_.image, armor.left_light.top, 20, cv::Scalar(0, 255, 0));
-    //     cv::circle(img_.image, armor.right_light.top, 30, cv::Scalar(0, 255, 0));
-    //     cv::circle(img_.image, armor.right_light.bottom, 40, cv::Scalar(0, 255, 0));
-    // }
+    int i = 1;
+    for (const auto& armor : result.armors) {
+        cv::circle(img_.image, armor.left_light.bottom, 10, cv::Scalar(0, 255, 0));
+        cv::circle(img_.image, armor.left_light.top, 20, cv::Scalar(0, 255, 0));
+        cv::circle(img_.image, armor.right_light.top, 30, cv::Scalar(0, 255, 0));
+        cv::circle(img_.image, armor.right_light.bottom, 40, cv::Scalar(0, 255, 0));
+    }
     return;
 
 }

@@ -43,7 +43,10 @@
 #include <vector>
 
 namespace helios_cv {
-    
+
+BaseNetDetectorParams::NetParams DetectorNode::armor_net_params_;
+BaseNetDetectorParams::NetParams DetectorNode::energy_net_params_;
+
 DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("detector_node", options) {
     // create params
     try {
@@ -141,16 +144,6 @@ void DetectorNode::init_detectors() {
         3 // pool_num
     };
     // create detectors
-    net_detector_ = std::make_shared<OVNetDetector>(
-        BaseNetDetectorParams{
-            static_cast<bool>(params_.is_blue),
-            static_cast<bool>(params_.autoaim_mode),
-            params_.debug,
-            params_.net.classifier_threshold,
-            params_.traditional.armor_detector.armor.min_large_center_distance,
-            armor_net_params_
-        }
-    );
     if (params_.autoaim_mode == 0) {
         traditional_detector_ = std::make_shared<TraditionalArmorDetector>(
             TraditionalArmorParams{
@@ -176,6 +169,16 @@ void DetectorNode::init_detectors() {
                 }
             }
         );
+        net_detector_ = std::make_shared<OVNetDetector>(
+            BaseNetDetectorParams{
+                static_cast<bool>(params_.is_blue),
+                static_cast<bool>(params_.autoaim_mode),
+                params_.debug,
+                params_.net.classifier_threshold,
+                params_.traditional.armor_detector.armor.min_large_center_distance,
+                armor_net_params_
+            }
+        );
     } else {
         traditional_detector_ = std::make_shared<TraditionalEnergyDetector>(
             TraditionalEnergyParams{
@@ -193,6 +196,16 @@ void DetectorNode::init_detectors() {
                 params_.traditional.energy_detector.rgb_weight_r_1,
                 params_.traditional.energy_detector.rgb_weight_r_2,
                 params_.traditional.energy_detector.rgb_weight_r_3
+            }
+        );
+        net_detector_ = std::make_shared<OVNetDetector>(
+            BaseNetDetectorParams{
+                static_cast<bool>(params_.is_blue),
+                static_cast<bool>(params_.autoaim_mode),
+                params_.debug,
+                params_.net.classifier_threshold,
+                params_.traditional.armor_detector.armor.min_large_center_distance,
+                energy_net_params_
             }
         );
     }
