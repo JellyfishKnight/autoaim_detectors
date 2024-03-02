@@ -124,6 +124,9 @@ private:
 
     uint8_t last_autoaim_mode_;
 
+    static BaseNetDetectorParams::NetParams armor_net_params_;
+    static BaseNetDetectorParams::NetParams energy_net_params_;
+
     rclcpp::Logger logger_ = rclcpp::get_logger("DetectorNode");
 };
 

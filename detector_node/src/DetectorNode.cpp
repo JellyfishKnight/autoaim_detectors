@@ -123,22 +123,32 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions& options) : rclcpp::Node("d
 }
 
 void DetectorNode::init_detectors() {
+    // create net params
+    armor_net_params_ = BaseNetDetectorParams::NetParams{
+        ament_index_cpp::get_package_share_directory("net_detectors") + "/model/" + params_.net.model_path.armor,
+        9, // num_class
+        2, // num_color
+        0.2, // nms_thresh
+        4, // num_apex
+        3 // pool_num
+    };
+    energy_net_params_ = BaseNetDetectorParams::NetParams{
+        ament_index_cpp::get_package_share_directory("net_detectors") + "/model/" + params_.net.model_path.energy,
+        3, // num_class
+        2, // num_color
+        0.2, // nms_thresh
+        4, // num_apex
+        3 // pool_num
+    };
     // create detectors
     net_detector_ = std::make_shared<OVNetDetector>(
         BaseNetDetectorParams{
             static_cast<bool>(params_.is_blue),
             static_cast<bool>(params_.autoaim_mode),
             params_.debug,
-            params_.net.classifier_thresh,
+            params_.net.classifier_threshold,
             params_.traditional.armor_detector.armor.min_large_center_distance,
-            BaseNetDetectorParams::NetParams{
-                ament_index_cpp::get_package_share_directory("net_detectors") + "/model/" + params_.net.model_name,
-                static_cast<int>(params_.net.num_class),
-                static_cast<int>(params_.net.num_color),
-                static_cast<float>(params_.net.nms_thresh),
-                static_cast<int>(params_.net.num_apex),
-                static_cast<int>(params_.net.pool_num)
-            }
+            armor_net_params_
         }
     );
     if (params_.autoaim_mode == 0) {
@@ -470,17 +480,10 @@ void DetectorNode::update_detector_params() {
     traditional_armor_params.armor_params.min_large_center_distance = params_.traditional.armor_detector.armor.min_large_center_distance;
     traditional_armor_params.armor_params.max_large_center_distance = params_.traditional.armor_detector.armor.max_large_center_distance;
     traditional_armor_params.armor_params.max_angle = params_.traditional.armor_detector.armor.max_angle;
-    net_params.classifier_threshold = params_.net.classifier_thresh;
+    net_params.classifier_threshold = params_.net.classifier_threshold;
     net_params.min_large_center_distance = params_.traditional.armor_detector.armor.min_large_center_distance;
-    net_params.net_params = BaseNetDetectorParams::NetParams{
-        ament_index_cpp::get_package_share_directory("net_detectors") + "/model/" + params_.net.model_name,
-        static_cast<int>(params_.net.num_class),
-        static_cast<int>(params_.net.num_color),
-        static_cast<float>(params_.net.nms_thresh),
-        static_cast<int>(params_.net.num_apex),
-        static_cast<int>(params_.net.pool_num)
-    };
-    net_detector_->set_params(&net_params);
+    armor_net_params_.MODEL_PATH = ament_index_cpp::get_package_share_directory("net_detectors") + "/model/" + params_.net.model_path.armor;
+    energy_net_params_.MODEL_PATH = ament_index_cpp::get_package_share_directory("net_detectors") + "/model/" + params_.net.model_path.energy;
     if (params_.autoaim_mode == 0) {
         if (last_autoaim_mode_ != 0) {
             traditional_detector_ = std::make_shared<TraditionalArmorDetector>(traditional_armor_params);
@@ -494,6 +497,8 @@ void DetectorNode::update_detector_params() {
             traditional_detector_ = std::make_shared<TraditionalEnergyDetector>(traditional_energy_params);
             armor_project_yaw_.reset();
             energy_project_roll_ = std::make_shared<EnergyProjectRoll>(cam_info_->k, cam_info_->d);
+            net_params.net_params = energy_net_params_;
+            net_detector_->set_params(&net_params);
         } else {
             traditional_detector_->set_params(&traditional_energy_params);
         }

@@ -54,6 +54,9 @@ const std::vector<std::string> ARMOR_NUMBER_LABEL {
 
 const std::vector<std::string> ENERGY_NUMBER_LABEL {
     ///TODO: add energy number label
+    "energy_target",
+    "energy_fan",
+    "energy_r"
 };
 
 typedef struct BaseNetDetectorParams {

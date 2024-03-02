@@ -39,12 +39,9 @@ ArmorsStamped Inference::detect() {
     //ov::Tensor input_tensor(input_port_.get_element_type(), input_port_.get_shape(), blob.ptr(0));
     ov::Tensor input_tensor = ov::Tensor(complied_model_.input().get_element_type(), complied_model_.input().get_shape(), input_data);
     infer_request_.set_input_tensor(input_tensor);
-
-
     //执行推理
     infer_request_.infer();
     // infer_request_.start_async();
-   
     //得到推理结果
     const ov::Tensor& output = infer_request_.get_output_tensor(0);
     const float* output_buffer = output.data<const float>();
@@ -62,6 +59,7 @@ ArmorsStamped Inference::detect() {
             continue;
         }
         Armor armor_target;
+        armor_target.confidence = object.conf;
         if (params_.autoaim_mode == 0) {
             armor_target.number = ARMOR_NUMBER_LABEL[object.label];
         } else {
@@ -70,8 +68,12 @@ ArmorsStamped Inference::detect() {
         armor_target.left_light.top = object.apexes[0];
         armor_target.left_light.bottom = object.apexes[1];
         armor_target.right_light.bottom = object.apexes[2];
-        armor_target.right_light.top = object.apexes[3];
-
+        if (params_.autoaim_mode != 0) {
+            armor_target.right_light.top = object.apexes[4];
+            armor_target.center = object.apexes[3];
+        } else {
+            armor_target.right_light.top = object.apexes[3];
+        }
         if (params_.autoaim_mode == 0) {
             armor_target.type = judge_armor_type(object);
         } else {
@@ -79,8 +81,10 @@ ArmorsStamped Inference::detect() {
         }
         armor_stamped.armors.emplace_back(armor_target);
     }
-    drawresult(armor_stamped);
 
+    if (params_.debug) {
+        drawresult(armor_stamped);
+    }
     return armor_stamped;
 }
 
@@ -432,6 +436,10 @@ void Inference::drawresult(ArmorsStamped result) {
         if (armor.type != ArmorType::INVALID) {
             cv::line(img_.image, armor.left_light.top, armor.right_light.bottom, cv::Scalar(0, 255, 0), 2);
             cv::line(img_.image, armor.left_light.bottom, armor.right_light.top, cv::Scalar(0, 255, 0), 2);
+            if (params_.autoaim_mode != 0) {
+                cv::line(img_.image, armor.left_light.bottom, armor.center, cv::Scalar(0, 255, 0), 2);
+                cv::line(img_.image, armor.right_light.bottom, armor.center, cv::Scalar(0, 255, 0), 2);
+            }
         }
     }
     // Show numbers and confidence
@@ -440,16 +448,19 @@ void Inference::drawresult(ArmorsStamped result) {
             cv::putText(
             img_.image, armor.number, armor.left_light.top, cv::FONT_HERSHEY_SIMPLEX, 0.8,
             cv::Scalar(0, 255, 255), 2);
+            cv::putText(
+            img_.image, std::to_string(armor.confidence), armor.right_light.top, cv::FONT_HERSHEY_SIMPLEX, 0.8,
+            cv::Scalar(0, 255, 255), 2);
         }
     }    
     // Circle sequence
-    int i = 1;
-    for (const auto& armor : result.armors) {
-        cv::circle(img_.image, armor.left_light.bottom, 10, cv::Scalar(0, 255, 0));
-        cv::circle(img_.image, armor.left_light.top, 20, cv::Scalar(0, 255, 0));
-        cv::circle(img_.image, armor.right_light.top, 30, cv::Scalar(0, 255, 0));
-        cv::circle(img_.image, armor.right_light.bottom, 40, cv::Scalar(0, 255, 0));
-    }
+    // int i = 1;
+    // for (const auto& armor : result.armors) {
+    //     cv::circle(img_.image, armor.left_light.bottom, 10, cv::Scalar(0, 255, 0));
+    //     cv::circle(img_.image, armor.left_light.top, 20, cv::Scalar(0, 255, 0));
+    //     cv::circle(img_.image, armor.right_light.top, 30, cv::Scalar(0, 255, 0));
+    //     cv::circle(img_.image, armor.right_light.bottom, 40, cv::Scalar(0, 255, 0));
+    // }
     return;
 
 }

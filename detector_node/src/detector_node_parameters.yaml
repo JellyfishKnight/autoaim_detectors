@@ -134,39 +134,20 @@ detector_node:
         default_value: 3.0,
         description: "area ratio",
       }
-  net:
-    model_name: {
-      type: string,
-      default_value: "2x3bone-9086.onnx",
-      description: "model name",
-    }
-    classifier_thresh: {
+  net: 
+    model_path: 
+      armor: {
+        type: string,
+        default_value: "2x3bone-9086.onnx",
+        description: "path of armor model",
+      }
+      energy: {
+        type: string,
+        default_value: "yolox_1.onnx",
+        description: "path of energy model",
+      }
+    classifier_threshold: {
       type: double,
       default_value: 0.7,
       description: "threshold of classifier",
-    }
-    num_class: {
-      type: int,
-      default_value: 9,
-      description: "number of class",
-    }
-    num_color: {
-      type: int,
-      default_value: 2,
-      description: "number of color",
-    }
-    nms_thresh: {
-      type: double,
-      default_value: 0.2,
-      description: "nms threshold",
-    }
-    num_apex: {
-      type: int,
-      default_value: 4,
-      description: "number of apex",
-    }
-    pool_num: {
-      type: int,
-      default_value: 3,
-      description: "number of pool",
     }
