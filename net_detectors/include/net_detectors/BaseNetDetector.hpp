@@ -147,6 +147,8 @@ typedef struct ImageStamped {
         void drawresult(ArmorsStamped result);
 
         float intersaction_area(const Object& a, const Object& b);
+
+        void avg_rect(std::vector<Object>& objects);
         ArmorType judge_armor_type(const Object& object);
     private:
         /*----以下都是openvino的核心组件----*/
@@ -162,6 +164,8 @@ typedef struct ImageStamped {
         int step_;
 
         int dw_, dh_;
+
+        std::vector<GridAndStride> grid_strides_;
     };
 #elif
 
