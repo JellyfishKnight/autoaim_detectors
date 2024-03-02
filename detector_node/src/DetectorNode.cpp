@@ -349,7 +349,6 @@ void DetectorNode::energy_image_callback(sensor_msgs::msg::Image::SharedPtr imag
         RCLCPP_ERROR_ONCE(get_logger(), "Error while transforming %s", ex.what());
         return;
     }
-    RCLCPP_WARN(logger_, "yaw %f", energy_project_roll_->yaw_ / M_PI * 180.0);
     // quaternion to rotation matrix
     energy_project_roll_->update_transform_info(
         cv::Quatd{
