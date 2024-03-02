@@ -12,7 +12,7 @@ Inference::Inference(std::string model_path, const BaseNetDetectorParams& params
     std::shared_ptr<ov::Model> model = core_.read_model(model_path);
     ov::preprocess::PrePostProcessor ppp = ov::preprocess::PrePostProcessor(model);
     ppp.input().tensor().set_element_type(ov::element::u8).set_layout("NHWC").set_color_format(ov::preprocess::ColorFormat::BGR);
-    ppp.input().preprocess().convert_element_type(ov::element::f32).convert_color(ov::preprocess::ColorFormat::RGB).scale({1., 1., 1.});
+    ppp.input().preprocess().convert_element_type(ov::element::f32).convert_color(ov::preprocess::ColorFormat::RGB);//.scale({1., 1., 1.});
     ppp.input().model().set_layout("NCHW");
     ppp.output().tensor().set_element_type(ov::element::f32);
     model = ppp.build();
@@ -24,26 +24,24 @@ Inference::Inference(std::string model_path, const BaseNetDetectorParams& params
     INPUT_W = tensor_shape_[2];
     input_port_ = complied_model_.input();
     params_ = params;
+    const int strides[3]={8, 16, 32};//步长
+    generate_grids_and_stride(INPUT_W, INPUT_H, strides, grid_strides_);
 }
 
 ArmorsStamped Inference::detect() {
     ArmorsStamped armor_stamped;
     armor_stamped.stamp = img_.stamp;
     //对图像进行处理，使其变成可以传给模型的数据类型
-    // cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
     cv::Mat pre_img = static_resize(img_.image);
-    //cv::dnn::blobFromImage(pre_img, blob, 1.0, cv::Size(INPUT_W, INPUT_H), cv::Scalar(), false, false);
-    float* input_data = (float *)pre_img.data;
+    std::uint8_t* input_data_u8 = pre_img.ptr<std::uint8_t>(0);
 
     //把数据传给模型
-    //ov::Tensor input_tensor(input_port_.get_element_type(), input_port_.get_shape(), blob.ptr(0));
-    ov::Tensor input_tensor = ov::Tensor(complied_model_.input().get_element_type(), complied_model_.input().get_shape(), input_data);
+    ov::Tensor input_tensor = ov::Tensor(complied_model_.input().get_element_type(), complied_model_.input().get_shape(), input_data_u8);
     infer_request_.set_input_tensor(input_tensor);
 
 
     //执行推理
     infer_request_.infer();
-    // infer_request_.start_async();
    
     //得到推理结果
     const ov::Tensor& output = infer_request_.get_output_tensor(0);
@@ -167,7 +165,7 @@ int Inference::argmax(const float* ptr, int len) {
 }
 
 cv::Mat Inference::static_resize(cv::Mat src) {
-    //求出模型的输入大小（416*416）相对于原图长边的比值
+    //求出模型的输入大小（448*448）相对于原图长边的比值
     scale_ = std::min(INPUT_W / (src.cols * 1.0), 
                         INPUT_H / (src.rows * 1.0));
 
@@ -179,7 +177,6 @@ cv::Mat Inference::static_resize(cv::Mat src) {
 
     cv::Mat re(unpad_h, unpad_w, CV_8UC3);
     cv::resize(src, re, re.size());
-    // cv::copyMakeBorder(re, re, 0, INPUT_H - unpad_h, 0, INPUT_W - unpad_w, cv::BORDER_CONSTANT, cv::Scalar(114, 114, 114));
 
     cv::Mat out;
     cv::copyMakeBorder(re, out, dh_, dh_, dw_, dw_, cv::BORDER_CONSTANT);
@@ -192,7 +189,7 @@ void Inference::generate_grids_and_stride(const int w, const int h, const int st
         int num_grid_h = h/strides[i];
         for(int g1 = 0; g1<num_grid_h; g1++){
             for(int g0=0; g0<num_grid_w; g0++){
-                grid_strides.push_back((GridAndStride{g0, g1, strides[i]}));
+                grid_strides.emplace_back((GridAndStride{g0, g1, strides[i]}));
             }
         }
     }
@@ -200,17 +197,22 @@ void Inference::generate_grids_and_stride(const int w, const int h, const int st
 
 void Inference::generate_yolox_proposal(std::vector<GridAndStride> &grid_strides, const float * output_buffer, float prob_threshold, std::vector<Object>& objects, float scale) {
     const int num_anchors = grid_strides.size();
+    const int class_start = 2 * params_.net_params.NUM_APEX + 1;
 
     for(int anchor_idx = 0; anchor_idx<num_anchors; anchor_idx++){
+        const int basic_pos = anchor_idx * (class_start + 
+            params_.net_params.NUM_CLASS + 
+            params_.net_params.NUM_COLORS);
+        float box_conf = output_buffer[basic_pos+class_start-1];
+        if (box_conf < prob_threshold) {
+            continue;
+        }
+
         const int grid0 = grid_strides[anchor_idx].grid0;
         const int grid1 = grid_strides[anchor_idx].grid1;
         const int stride = grid_strides[anchor_idx].stride;
-        const int class_start = 2 * params_.net_params.NUM_APEX + 1;
         //4个点的xy坐标+1个置信度+颜色+类别
-        const int basic_pos = anchor_idx * (9 + 
-            params_.net_params.NUM_CLASS + 
-            params_.net_params.NUM_COLORS);
-
+        
         std::vector<cv::Point2f> point;
 
         for (int i = 0; i < params_.net_params.NUM_APEX; i++) {
@@ -242,21 +244,21 @@ void Inference::generate_yolox_proposal(std::vector<GridAndStride> &grid_strides
         float class_conf = output_buffer[basic_pos+class_start+params_.net_params.NUM_COLORS+class_idx];
 
         //获取置信度
-        float box_conf = output_buffer[basic_pos+class_start-1];
-        if(box_conf>prob_threshold){
-            Object obj;
+        
+        // if(box_conf>prob_threshold){
+        Object obj;
 
-            obj.apexes = std::move(point);
+        obj.apexes = std::move(point);
 
-            obj.rect = cv::boundingRect(obj.apexes);
+        obj.rect = cv::boundingRect(obj.apexes);
 
-            obj.label = class_idx;
-            obj.color = color_idx*class_start;
-            //分类置信度和识别置信度的乘积才是最后真正算出来的置信度
-            obj.conf=box_conf*((class_conf+color_conf)/2);
+        obj.label = class_idx;
+        obj.color = color_idx*class_start;
+        //分类置信度和识别置信度的乘积才是最后真正算出来的置信度
+        obj.conf = box_conf*((class_conf+color_conf)/2);
 
-            objects.push_back(obj);
-        }
+        objects.emplace_back(obj);
+        // }
     }
 }
 
@@ -315,19 +317,21 @@ void Inference::qsort_descent_inplace(std::vector<Object> & faceobjects, int lef
 void Inference::nms_sorted_bboxes(std::vector<Object> & faceobjects, std::vector<int>& picked, float nms_threshold) {
     picked.clear();
     const int n = faceobjects.size();
-    std::vector<float> areas(n);
+    // std::vector<float> areas;
+    // areas.reserve(n);
 
-    for(int i=0; i<n; i++){
-        //计算每一个面积
-        // std::vector<cv::Point2f> object_apex_tmp;
-        // object_apex_tmp.emplace_back(faceobjects[i].p1);
-        // object_apex_tmp.emplace_back(faceobjects[i].p2);
-        // object_apex_tmp.emplace_back(faceobjects[i].p3);
-        // object_apex_tmp.emplace_back(faceobjects[i].p4);
-        // areas[i] = cv::contourArea(object_apex_tmp);
-        // areas[i] = cv::contourArea(faceobjects[i].apexes);
-        areas[i] = faceobjects[i].rect.area();
-    }
+    // for(int i=0; i<n; i++){
+    //     //计算每一个面积
+    //     // std::vector<cv::Point2f> object_apex_tmp;
+    //     // object_apex_tmp.emplace_back(faceobjects[i].p1);
+    //     // object_apex_tmp.emplace_back(faceobjects[i].p2);
+    //     // object_apex_tmp.emplace_back(faceobjects[i].p3);
+    //     // object_apex_tmp.emplace_back(faceobjects[i].p4);
+    //     // areas[i] = cv::contourArea(object_apex_tmp);
+    //     // areas[i] = cv::contourArea(faceobjects[i].apexes);
+    //     // areas[i] = faceobjects[i].rect.area();
+    //     areas.emplace_back(faceobjects[i].rect.area());
+    // }
 
     for(int i=0; i<n; i++){
         Object& a = faceobjects[i];
@@ -338,7 +342,7 @@ void Inference::nms_sorted_bboxes(std::vector<Object> & faceobjects, std::vector
         // apex_a.emplace_back(a.p4);
 
 
-        int keep = 1;
+        bool keep = true;
 
         for(int j=0; j<(int)picked.size(); j++){
             Object &b = faceobjects[picked[j]];
@@ -351,17 +355,19 @@ void Inference::nms_sorted_bboxes(std::vector<Object> & faceobjects, std::vector
 
             // float inter_area = cv::intersectConvexConvex(a.apexes, b.apexes, apex_inter);
             float inter_area = intersaction_area(a, b);
-            float union_area = areas[i] + areas[picked[j]] - inter_area;
+            float union_area = a.rect.area() + b.rect.area() - inter_area;
             float iou = inter_area/union_area;
 
             if(iou>nms_threshold|| std::isnan(iou)){
-                keep=0;
+                keep = false;
 
-                if(iou>0.9 && abs(a.conf - b.conf) < 0.15&&a.label==b.label&&a.color==b.color){
-                    for (int k = 0; k < params_.net_params.NUM_APEX; k++) {
-                        b.apexes.emplace_back(a.apexes[k]);
-                        //areas[i] + areas[picked[j]] - inter_area
-                    }
+                if(iou>0.9 && abs(a.conf - b.conf) < 0.2&&a.label==b.label&&a.color==b.color){
+                    // for (int k = 0; k < params_.net_params.NUM_APEX; k++) {
+                    //     b.apexes.emplace_back(a.apexes[k]);
+                    //     //areas[i] + areas[picked[j]] - inter_area
+                    // }
+                    b.apexes.insert(b.apexes.end(), a.apexes.begin(), a.apexes.end());
+
                 }
             }
         }
@@ -381,11 +387,10 @@ void Inference::nms_sorted_bboxes(std::vector<Object> & faceobjects, std::vector
 */
 void Inference::decode(const float* output_buffer, std::vector<Object>& objects, float scale) {
     std::vector<Object>proposals;
-    const int strides[3]={8, 16, 32};//步长
-    std::vector<GridAndStride> grid_strides;
+    
+    // std::vector<GridAndStride> grid_strides;
 
-    generate_grids_and_stride(INPUT_W, INPUT_H, strides, grid_strides);
-    generate_yolox_proposal(grid_strides, output_buffer, 0.5, proposals, scale);
+    generate_yolox_proposal(grid_strides, output_buffer, 0.65, proposals, scale);
     qsort_descent_inplace(proposals);
     if(proposals.size()>=128){
         proposals.resize(128);
@@ -396,32 +401,57 @@ void Inference::decode(const float* output_buffer, std::vector<Object>& objects,
 
     int count = picked.size();
     step_ = count;
-    objects.resize(count);
     //非极大抑制后的放入object里
+    objects.reserve(count);
     for(int i=0; i<count; i++){
-        objects[i] = proposals[picked[i]];
+        objects.emplace_back(proposals[picked[i]]);
     }
+    avg_rect(objects);
+    // for (auto& object : objects) {
+    //     auto N = object.apexes.size();
+    //     if (N >= 2 * params_.net_params.NUM_APEX) {
+    //         cv::Point2f fin_point[params_.net_params.NUM_APEX];
 
+    //         for (int i = 0; i < N; i++) {
+    //             fin_point[i % params_.net_params.NUM_APEX] += object.apexes[i];
+    //         }
+
+    //         for (int i = 0; i < params_.net_params.NUM_APEX; i++) {
+    //             fin_point[i].x = fin_point[i].x / (N / params_.net_params.NUM_APEX);
+    //             fin_point[i].y = fin_point[i].y / (N / params_.net_params.NUM_APEX);
+    //         }
+    //         object.apexes.clear();
+    //         for (int i = 0; i < params_.net_params.NUM_APEX; i++) {
+    //             object.apexes.emplace_back(fin_point[i]);
+    //         } 
+    //     }
+    // }
+}
+
+void Inference::avg_rect(std::vector<Object>& objects) {
     for (auto& object : objects) {
-        auto N = object.apexes.size();
+        auto N {object.apexes.size()};
+
         if (N >= 2 * params_.net_params.NUM_APEX) {
             cv::Point2f fin_point[params_.net_params.NUM_APEX];
 
-            for (int i = 0; i < N; i++) {
-                fin_point[i % params_.net_params.NUM_APEX] += object.apexes[i];
+            for (int i {0}; i < N; i++) {
+                fin_point[i % params_net_params.NUM_APEX] += object.apexes[i];
             }
 
-            for (int i = 0; i < params_.net_params.NUM_APEX; i++) {
-                fin_point[i].x = fin_point[i].x / (N / params_.net_params.NUM_APEX);
-                fin_point[i].y = fin_point[i].y / (N / params_.net_params.NUM_APEX);
-            }
+            std::for_each(fin_point, fin_point + params_.net_params.NUM_APEX, [N](cv::Point2f& p) {
+                p.x = p.x / (N / params_.net_params.NUM_APEX);
+                p.y = p.y / (N / params_.net_params.NUM_APEX);
+            });
+
             object.apexes.clear();
-            for (int i = 0; i < params_.net_params.NUM_APEX; i++) {
-                object.apexes.emplace_back(fin_point[i]);
-            } 
+            std::for_each(fin_point, fin_point + params_.net_params.NUM_APEX, [&object](cv::Point2f& p) {
+                object.apexes.emplace_back(p);
+            });
         }
     }
 }
+
 
 void Inference::drawresult(ArmorsStamped result) {
     if (result.armors.empty()) {
