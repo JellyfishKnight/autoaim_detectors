@@ -395,7 +395,7 @@ void Inference::decode(const float* output_buffer, std::vector<Object>& objects,
     
     // std::vector<GridAndStride> grid_strides;
 
-    generate_yolox_proposal(grid_strides, output_buffer, 0.65, proposals, scale);
+    generate_yolox_proposal(grid_strides_, output_buffer, 0.65, proposals, scale);
     qsort_descent_inplace(proposals);
     if(proposals.size()>=128){
         proposals.resize(128);
@@ -441,10 +441,10 @@ void Inference::avg_rect(std::vector<Object>& objects) {
             cv::Point2f fin_point[params_.net_params.NUM_APEX];
 
             for (int i {0}; i < N; i++) {
-                fin_point[i % params_net_params.NUM_APEX] += object.apexes[i];
+                fin_point[i % params_.net_params.NUM_APEX] += object.apexes[i];
             }
 
-            std::for_each(fin_point, fin_point + params_.net_params.NUM_APEX, [N](cv::Point2f& p) {
+            std::for_each(fin_point, fin_point + params_.net_params.NUM_APEX, [N, this](cv::Point2f& p) {
                 p.x = p.x / (N / params_.net_params.NUM_APEX);
                 p.y = p.y / (N / params_.net_params.NUM_APEX);
             });
