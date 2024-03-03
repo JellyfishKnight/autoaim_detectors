@@ -499,16 +499,12 @@ void DetectorNode::update_detector_params() {
     if (params_.autoaim_mode == 0) {
         if (last_autoaim_mode_ != 0) {
             traditional_detector_ = std::make_shared<TraditionalArmorDetector>(traditional_armor_params);
-            energy_project_roll_.reset();
-            armor_project_yaw_ = std::make_shared<ArmorProjectYaw>(cam_info_->k, cam_info_->d);
         } else {
             traditional_detector_->set_params(&traditional_armor_params);
         }
     } else {
         if (last_autoaim_mode_ != 1) {
             traditional_detector_ = std::make_shared<TraditionalEnergyDetector>(traditional_energy_params);
-            armor_project_yaw_.reset();
-            energy_project_roll_ = std::make_shared<EnergyProjectRoll>(cam_info_->k, cam_info_->d);
             net_params.net_params = energy_net_params_;
             net_detector_->set_params(&net_params);
         } else {
